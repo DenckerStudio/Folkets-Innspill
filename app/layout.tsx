@@ -1,0 +1,21 @@
+import type {Metadata} from 'next';
+import './globals.css';
+import { Navigation } from '@/components/navigation';
+
+export const metadata: Metadata = {
+  title: 'Folkets Stemme',
+  description: 'En nøytral plattform som brobygger mellom Stortinget og innbyggerne.',
+};
+
+export default function RootLayout({children}: {children: React.ReactNode}) {
+  return (
+    <html lang="no">
+      <body className="bg-gray-50 min-h-screen font-sans text-gray-900" suppressHydrationWarning>
+        <Navigation />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {children}
+        </main>
+      </body>
+    </html>
+  );
+}
