@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, Search, User, BarChart2, Info, LogIn } from 'lucide-react';
+import { Home, Search, User, BarChart2, Info, LogIn, MessageSquare, FileEdit, Bell } from 'lucide-react';
 
 export function Navigation() {
   return (
@@ -21,9 +21,17 @@ export function Navigation() {
                 <Search className="w-4 h-4 mr-2" />
                 Utforsk
               </Link>
+              <Link href="/horinger" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                <FileEdit className="w-4 h-4 mr-2" />
+                Høringer
+              </Link>
               <Link href="/politiker-hub" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                 <BarChart2 className="w-4 h-4 mr-2" />
                 Politiker-hub
+              </Link>
+              <Link href="/forum" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Forum
               </Link>
               <Link href="/om-oss" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                 <Info className="w-4 h-4 mr-2" />
@@ -32,7 +40,12 @@ export function Navigation() {
             </div>
           </div>
           <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
-             <Link href="/min-side" className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
+              <Link href="/min-side?tab=varsler" className="relative text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
+                <span className="sr-only">Varsler</span>
+              </Link>
+              <Link href="/min-side" className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
                 <User className="w-5 h-5" />
                 <span className="sr-only">Min side</span>
               </Link>

@@ -3,36 +3,63 @@
 import { useState } from 'react';
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import FadeIn from '@/components/fade-in';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate BankID login process
-    setTimeout(() => {
-      window.location.href = '/min-side';
-    }, 1500);
+    
+    const form = e.target as HTMLFormElement;
+    const ninInput = form.elements.namedItem('nin') as HTMLInputElement;
+    const nin = ninInput.value;
+
+    try {
+      const response = await fetch('/api/auth/bankid', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ nin }),
+      });
+
+      if (response.ok) {
+        // Redirect to profile or home page after successful verification
+        window.location.href = '/min-side';
+      } else {
+        const data = await response.json();
+        alert(`Verifisering feilet: ${data.error}`);
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('En feil oppstod under verifisering.');
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center">
-            <ShieldCheck className="w-8 h-8 text-indigo-600" />
+      <FadeIn delay={0.1}>
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center">
+              <ShieldCheck className="w-8 h-8 text-indigo-600" />
+            </div>
           </div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Logg inn med BankID
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            For å sikre &quot;én person, én stemme&quot; krever vi verifisering.
+          </p>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Logg inn med BankID
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          For å sikre "én person, én stemme" krever vi verifisering.
-        </p>
-      </div>
+      </FadeIn>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <FadeIn delay={0.2} direction="up">
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-sm sm:rounded-3xl sm:px-10 border border-gray-100">
           
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
@@ -116,7 +143,8 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </FadeIn>
     </div>
   );
 }
