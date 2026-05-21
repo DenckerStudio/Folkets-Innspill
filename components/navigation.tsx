@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Home, Search, User, BarChart2, Info, LogIn, MessageSquare, FileEdit, Bell } from 'lucide-react';
 
 export function Navigation() {
@@ -8,8 +9,16 @@ export function Navigation() {
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="text-xl font-bold text-indigo-600 flex items-center gap-2">
-                🏛️ Folkets Stemme
+              <Link href="/" className="flex items-center gap-2">
+                <div className="relative w-[150px] h-10 hover:opacity-80 transition-opacity">
+                  <Image 
+                    src="/logo.png" 
+                    alt="Folkets Stemme Logo" 
+                    fill 
+                    className="object-contain object-left"
+                    priority
+                  />
+                </div>
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">

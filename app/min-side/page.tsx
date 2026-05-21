@@ -1,22 +1,20 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { User, Settings, Bell, Shield, LogOut, FileText, CheckCircle, PieChart } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { getSaker } from '@/lib/stortinget';
 
-export default function MinSidePage() {
-  const [activeTab, setActiveTab] = useState('historikk');
+function MinSideContent() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'historikk';
+  const validatedTab = ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'].includes(initialTab) ? initialTab : 'historikk';
+  
+  const [activeTab, setActiveTab] = useState(validatedTab);
   const [issues, setIssues] = useState<any[]>([]);
 
   useEffect(() => {
-    // Check URL to see if we should open a specific tab (like varsler)
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get('tab');
-    if (tabParam && ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-
     let isMounted = true;
     getSaker().then((data) => {
       if (isMounted) {
@@ -349,5 +347,13 @@ export default function MinSidePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MinSidePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">Laster...</div>}>
+      <MinSideContent />
+    </Suspense>
   );
 }

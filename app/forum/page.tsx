@@ -154,7 +154,7 @@ export default async function ForumPage() {
                     <div key={category} className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700 hover:text-indigo-600 cursor-pointer">{category}</span>
                       <span className="px-2 py-0.5 bg-gray-100 text-xs text-gray-500 font-medium">
-                        {Math.floor(Math.random() * 100) + 10} innlegg
+                        {((index * 13) % 90) + 10} innlegg
                       </span>
                     </div>
                   ))}

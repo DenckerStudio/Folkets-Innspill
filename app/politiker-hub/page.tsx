@@ -181,7 +181,7 @@ export default function PolitikerHubPage() {
             </div>
             
             <p className="text-gray-600 mb-8">
-              Slik fordeler meningene seg på kryss av aldersgrupper for den mest populære saken "Ny klimaplan for 2030".
+              Slik fordeler meningene seg på kryss av aldersgrupper for den mest populære saken &quot;Ny klimaplan for 2030&quot;.
             </p>
 
             <div className="h-80 w-full mb-4">

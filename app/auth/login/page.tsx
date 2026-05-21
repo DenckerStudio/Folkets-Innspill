@@ -4,38 +4,53 @@ import { useState } from 'react';
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import FadeIn from '@/components/fade-in';
+import { authClient } from '@/lib/auth-client';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    const form = e.target as HTMLFormElement;
-    const ninInput = form.elements.namedItem('nin') as HTMLInputElement;
-    const nin = ninInput.value;
 
     try {
-      const response = await fetch('/api/auth/bankid', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ nin }),
-      });
-
-      if (response.ok) {
-        // Redirect to profile or home page after successful verification
-        window.location.href = '/min-side';
+      if (isRegister) {
+        await authClient.signUp.email({
+          email,
+          password,
+          name,
+        }, {
+          onSuccess: (ctx) => {
+            router.push('/min-side');
+          },
+          onError: (ctx) => {
+            alert(ctx.error.message);
+            setIsLoading(false);
+          },
+        });
       } else {
-        const data = await response.json();
-        alert(`Verifisering feilet: ${data.error}`);
-        setIsLoading(false);
+        await authClient.signIn.email({
+          email,
+          password,
+        }, {
+           onSuccess: (ctx) => {
+             router.push('/min-side');
+           },
+           onError: (ctx) => {
+             alert(ctx.error.message);
+             setIsLoading(false);
+           }
+        });
       }
     } catch (error) {
-      console.error('Login error:', error);
-      alert('En feil oppstod under verifisering.');
+      console.error('Auth error:', error);
+      alert('En feil oppstod under innloggingen.');
       setIsLoading(false);
     }
   };
@@ -50,10 +65,10 @@ export default function LoginPage() {
             </div>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Logg inn med BankID
+            {isRegister ? 'Registrer ny bruker' : 'Logg inn på din konto'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            For å sikre &quot;én person, én stemme&quot; krever vi verifisering.
+            Tilgang til sikker, representativ demokratideltakelse.
           </p>
         </div>
       </FadeIn>
@@ -62,36 +77,56 @@ export default function LoginPage() {
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-sm sm:rounded-3xl sm:px-10 border border-gray-100">
           
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <ShieldCheck className="h-5 w-5 text-blue-400" aria-hidden="true" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">Personvern først</h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p>
-                    Din identitet brukes kun til å verifisere at du er en reell person. 
-                    Dine stemmer lagres anonymt og kan aldri kobles tilbake til deg.
-                  </p>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {isRegister && (
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                  Fullt navn
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  />
                 </div>
               </div>
-            </div>
-          </div>
+            )}
 
-          <form className="space-y-6" onSubmit={handleLogin}>
             <div>
-              <label htmlFor="nin" className="block text-sm font-medium text-gray-700">
-                Fødselsnummer (11 siffer)
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                E-post
               </label>
               <div className="mt-1">
                 <input
-                  id="nin"
-                  name="nin"
-                  type="text"
-                  autoComplete="off"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
                   required
-                  placeholder="DDMMÅÅXXXXX"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Passord
+              </label>
+              <div className="mt-1">
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
@@ -109,39 +144,27 @@ export default function LoginPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Verifiserer...
+                    Vennligst vent...
                   </span>
                 ) : (
                   <span className="flex items-center">
-                    Fortsett med BankID
+                    {isRegister ? 'Registrer deg' : 'Logg inn'}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </span>
                 )}
               </button>
             </div>
-          </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Er du politiker?
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <Link
-                href="/politiker-hub"
-                className="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            
+            <div className="text-center mt-4">
+              <button
+                type="button"
+                onClick={() => setIsRegister(!isRegister)}
+                className="text-sm text-indigo-600 hover:text-indigo-500"
               >
-                Gå til Politiker-hub
-              </Link>
+                {isRegister ? 'Har du allerede konto? Logg inn her' : 'Trenger du konto? Registrer deg'}
+              </button>
             </div>
-          </div>
+          </form>
         </div>
         </div>
       </FadeIn>
