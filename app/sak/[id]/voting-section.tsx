@@ -1,8 +1,44 @@
 'use client';
 
-import { useState } from 'react';
-import { ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ThumbsUp, ThumbsDown, Minus, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+function AnimatedPercent({ value, initialValue = 0 }: { value: number, initialValue?: number }) {
+  const [displayValue, setDisplayValue] = useState(initialValue);
+  const currentDisplayValue = useRef(initialValue);
+
+  useEffect(() => {
+    let startTimestamp: number;
+    let animationFrameId: number;
+    const duration = 1000;
+    const startValue = currentDisplayValue.current;
+    
+    if (startValue === value) return;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      
+      const springish = 1 - Math.exp(-progress * 6);
+      const nextValue = progress === 1 
+        ? value 
+        : Math.round(startValue + (value - startValue) * springish);
+      
+      setDisplayValue(nextValue);
+      currentDisplayValue.current = nextValue;
+      
+      if (progress < 1) {
+        animationFrameId = window.requestAnimationFrame(step);
+      }
+    };
+    
+    animationFrameId = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [value]);
+
+  return <>{displayValue}%</>;
+}
 
 interface VotingSectionProps {
   initialVotes: {
@@ -43,7 +79,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('for')}
           disabled={userVote !== null}
-          className={`flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
+          className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'for' 
               ? 'border-emerald-500 bg-emerald-100 text-emerald-800 shadow-md ring-2 ring-emerald-500 ring-offset-2' 
               : userVote !== null
@@ -51,6 +87,16 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
                 : 'border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-200 cursor-pointer'
           }`}
         >
+          {userVote === 'for' && (
+            <motion.div 
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", bounce: 0.6 }}
+              className="absolute top-3 right-3"
+            >
+              <CheckCircle className="w-6 h-6 text-white fill-emerald-500" />
+            </motion.div>
+          )}
           <motion.div
             animate={userVote === 'for' ? { scale: [1, 1.2, 1], rotate: [0, -10, 10, 0] } : {}}
             transition={{ duration: 0.5 }}
@@ -65,7 +111,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('abstain')}
           disabled={userVote !== null}
-          className={`flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
+          className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'abstain' 
               ? 'border-gray-400 bg-gray-200 text-gray-800 shadow-md ring-2 ring-gray-400 ring-offset-2' 
               : userVote !== null
@@ -73,6 +119,16 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
                 : 'border-gray-100 bg-gray-50 text-gray-700 hover:bg-gray-100 hover:border-gray-200 cursor-pointer'
           }`}
         >
+          {userVote === 'abstain' && (
+            <motion.div 
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", bounce: 0.6 }}
+              className="absolute top-3 right-3"
+            >
+              <CheckCircle className="w-6 h-6 text-white fill-gray-600" />
+            </motion.div>
+          )}
           <motion.div
             animate={userVote === 'abstain' ? { scale: [1, 1.2, 1] } : {}}
             transition={{ duration: 0.4 }}
@@ -87,7 +143,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('against')}
           disabled={userVote !== null}
-          className={`flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
+          className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'against' 
               ? 'border-rose-500 bg-rose-100 text-rose-800 shadow-md ring-2 ring-rose-500 ring-offset-2' 
               : userVote !== null
@@ -95,6 +151,16 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
                 : 'border-rose-100 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:border-rose-200 cursor-pointer'
           }`}
         >
+          {userVote === 'against' && (
+            <motion.div 
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", bounce: 0.6 }}
+              className="absolute top-3 right-3"
+            >
+              <CheckCircle className="w-6 h-6 text-white fill-rose-500" />
+            </motion.div>
+          )}
           <motion.div
             animate={userVote === 'against' ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
             transition={{ duration: 0.5 }}
@@ -127,7 +193,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
             className="bg-emerald-500 relative flex items-center justify-center" 
             title={`For: ${forPercent}%`}
           >
-            {forPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80">{forPercent}%</span>}
+            {forPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={forPercent} /></span>}
           </motion.div>
           <motion.div 
             initial={{ width: 0 }}
@@ -136,7 +202,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
             className="bg-gray-400 relative flex items-center justify-center" 
             title={`Avstår: ${abstainPercent}%`}
           >
-            {abstainPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80">{abstainPercent}%</span>}
+            {abstainPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={abstainPercent} /></span>}
           </motion.div>
           <motion.div 
             initial={{ width: 0 }}
@@ -145,7 +211,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
             className="bg-rose-500 relative flex items-center justify-center" 
             title={`Mot: ${againstPercent}%`}
           >
-            {againstPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80">{againstPercent}%</span>}
+            {againstPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={againstPercent} /></span>}
           </motion.div>
         </div>
         <div className="flex justify-between text-sm text-gray-600 font-medium px-1">
