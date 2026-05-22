@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { Home, Search, User, BarChart2, Info, LogIn, MessageSquare, FileEdit, Bell } from 'lucide-react';
 
 export function Navigation() {
@@ -9,15 +8,49 @@ export function Navigation() {
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="relative w-[150px] h-10 hover:opacity-80 transition-opacity">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Folkets Stemme Logo" 
-                    fill 
-                    className="object-contain object-left"
-                    priority
-                  />
+              <Link href="/" className="flex items-center gap-3 group">
+                <div className="relative hover:opacity-90 transition-opacity flex items-center gap-3">
+                  <svg viewBox="0 0 200 250" className="w-12 h-14" xmlns="http://www.w3.org/2000/svg">
+                    <clipPath id="bubble">
+                      <path d="M 40 0 
+                               H 160 
+                               A 40 40 0 0 1 200 40 
+                               V 160 
+                               A 40 40 0 0 1 160 200 
+                               H 140 
+                               L 145 240 
+                               L 100 200 
+                               H 40 
+                               A 40 40 0 0 1 0 160 
+                               V 40 
+                               A 40 40 0 0 1 40 0 Z" />
+                    </clipPath>
+                    <g clipPath="url(#bubble)">
+                      {/* Background Red */}
+                      <rect width="200" height="250" fill="#ba0c2f" />
+                      
+                      {/* White Cross */}
+                      <rect x="60" y="0" width="30" height="250" fill="white" />
+                      <rect x="0" y="80" width="200" height="30" fill="white" />
+                      
+                      {/* Blue Cross */}
+                      <rect x="70" y="0" width="10" height="250" fill="#00205b" />
+                      <rect x="0" y="90" width="200" height="10" fill="#00205b" />
+                
+                      {/* Red section below chart line */}
+                      <path d="M 0 150 L 90 60 L 120 90 L 220 -10 L 220 250 L 0 250 Z" fill="#ba0c2f" />
+                      
+                      {/* White chart line */}
+                      <path d="M -10 160 L 90 60 L 120 90 L 230 -20" fill="none" stroke="white" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
+                      
+                      {/* Chart node */}
+                      <circle cx="120" cy="90" r="14" fill="#00205b" stroke="white" strokeWidth="6" />
+                    </g>
+                  </svg>
+                  <div className="flex flex-col justify-center font-extrabold tracking-tight" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                    <span className="text-[#00205b] text-xl leading-none mb-0.5">FOLKETS</span>
+                    <span className="text-[#ba0c2f] text-xl leading-none mt-0.5">STEMME</span>
+                  </div>
                 </div>
               </Link>
             </div>

@@ -25,7 +25,7 @@ export default async function Home() {
           </div>
           <h3 className="text-lg font-medium text-gray-900">Verifisert & Sikkert</h3>
           <p className="mt-2 text-base text-gray-500">
-            Innlogging med BankID sikrer &quot;én person, én stemme&quot;. Din identitet er beskyttet, og stemmen din lagres anonymt.
+            Sikker innlogging sikrer &quot;én person, én stemme&quot;. Din identitet er beskyttet, og stemmen din lagres anonymt.
           </p>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">

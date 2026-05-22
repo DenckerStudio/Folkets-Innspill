@@ -8,14 +8,14 @@ export default function HeroSection() {
   return (
     <motion.section 
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }} // Remove hardcoded backgroundColor animation to allow tailwind classes to show
+      animate={{ opacity: 1 }}
       transition={{ duration: 1.5, ease: 'easeOut' }}
-      className="relative overflow-hidden text-center py-24 px-4 sm:px-6 lg:px-8 border-y border-gray-200 bg-gradient-to-br from-[#ba0c2f]/10 via-[#ffffff] to-[#00205b]/10"
+      className="relative overflow-hidden text-center py-24 sm:py-32 w-[100vw] left-[50%] right-[50%] -ml-[50vw] -mr-[50vw] border-b border-gray-200 bg-gradient-to-br from-[#ba0c2f]/10 via-[#ffffff] to-[#00205b]/10 -mt-8 mb-12"
     >
       <div className="absolute top-0 left-1/4 -translate-x-1/2 w-[600px] h-[600px] bg-[#ba0c2f]/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="absolute animate-pulse-slow bottom-0 right-1/4 translate-x-1/2 w-[600px] h-[600px] bg-[#00205b]/10 blur-[120px] rounded-full pointer-events-none"></div>
       
-      <div className="relative z-10 max-w-5xl mx-auto">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -58,7 +58,7 @@ export default function HeroSection() {
             Utforsk saker
           </Link>
           <Link href="/auth/login" className="mt-3 sm:mt-0 w-full sm:w-auto flex items-center justify-center px-8 py-4 border border-gray-300 text-base font-medium text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 md:text-lg shadow-sm">
-            Logg inn med BankID
+            Logg inn
           </Link>
         </motion.div>
         

@@ -12,25 +12,41 @@ export default function AiSummary({ title, summary }: { title: string, summary: 
   useEffect(() => {
     async function fetchSummary() {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: `Du er en nøytral, lokal AI-assistent (Ollama) for "Folkets Stemme". 
-Din oppgave er å forenkle følgende stortingssak for vanlige borgere.
-Sakstittel: ${title}
-Beskrivelse: ${summary}
+        const ollamaUrl = process.env.NEXT_PUBLIC_OLLAMA_URL;
+        let responseText = '{}';
+        const systemPrompt = `Du er en nøytral, lokal AI-assistent for "Folkets Stemme". \nDin oppgave er å forenkle følgende stortingssak for vanlige borgere.\nSakstittel: ${title}\nBeskrivelse: ${summary}\n\nSvar KUN med et JSON-objekt med følgende nøkler:\n"hva": Kort forklart, hva handler saken om? (maks 2 setninger)\n"hvem": Hvem påvirkes direkte av dette? (maks 2 setninger)\n"kostnad": Hva er den antatte økonomiske kostnaden eller konsekvensen? (maks 2 setninger)\nSvar på norsk.`;
 
-Svar KUN med et JSON-objekt med følgende nøkler:
-"hva": Kort forklart, hva handler saken om? (maks 2 setninger)
-"hvem": Hvem påvirkes direkte av dette? (maks 2 setninger)
-"kostnad": Hva er den antatte økonomiske kostnaden eller konsekvensen? (maks 2 setninger)
-Svar på norsk.`,
-          config: {
-            responseMimeType: 'application/json',
+        if (ollamaUrl) {
+          const res = await fetch(`${ollamaUrl}/api/generate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'llama3',
+              prompt: systemPrompt,
+              stream: false,
+              format: 'json'
+            }),
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Ollama request failed with status ${res.status}`);
           }
-        });
+          const jsonRes = await res.json();
+          responseText = jsonRes.response || '{}';
+        } else {
+          const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.5-flash',
+            contents: systemPrompt,
+            config: {
+              responseMimeType: 'application/json',
+            }
+          });
+          responseText = response.text || '{}';
+        }
         
-        let responseText = response.text || '{}';
         // Remove markdown formatting if present
         if (responseText.startsWith('```json')) {
           responseText = responseText.replace(/```json\n?/, '').replace(/```$/, '');
