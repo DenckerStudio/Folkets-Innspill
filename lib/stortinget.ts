@@ -29,7 +29,7 @@ function parseStortingetDate(dateStr: string): string {
 export async function getSaker(): Promise<any[]> {
   try {
     const res = await fetch('https://data.stortinget.no/eksport/saker?stortingssesjonid=2025-2026&format=json', {
-      next: { revalidate: 3600 }
+      cache: 'no-store'
     });
     if (!res.ok) throw new Error('Failed to fetch saker');
     const data = await res.json();
@@ -41,9 +41,9 @@ export async function getSaker(): Promise<any[]> {
       category: sak.emne_liste && sak.emne_liste.length > 0 ? sak.emne_liste[0].navn : 'Generelt',
       date: parseStortingetDate(sak.sist_oppdatert_dato),
       votes: {
-        for: Math.floor(Math.random() * 10000) + 1000,
-        against: Math.floor(Math.random() * 8000) + 500,
-        abstain: Math.floor(Math.random() * 1000),
+        for: ((parseInt(sak.id.toString()) || 123) * 17) % 6000 + 4000,
+        against: ((parseInt(sak.id.toString()) || 123) * 23) % 4000 + 1000,
+        abstain: ((parseInt(sak.id.toString()) || 123) * 7) % 500,
         total: 0
       },
       status: sak.status === 1 ? 'pending' : 'closed',

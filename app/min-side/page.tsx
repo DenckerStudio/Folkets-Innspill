@@ -3,15 +3,20 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { User, Settings, Bell, Shield, LogOut, FileText, CheckCircle, PieChart } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { getSaker } from '@/lib/stortinget';
+import { useSearchParams } from 'next/navigation';
 
 function MinSideContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'historikk';
-  const validatedTab = ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'].includes(initialTab) ? initialTab : 'historikk';
-  
-  const [activeTab, setActiveTab] = useState(validatedTab);
+  const [activeTab, setActiveTab] = useState('historikk');
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'].includes(tabParam)) {
+      // eslint-disable-next-line
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
   const [issues, setIssues] = useState<any[]>([]);
 
   useEffect(() => {

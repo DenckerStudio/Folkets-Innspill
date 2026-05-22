@@ -150,7 +150,7 @@ export default async function ForumPage() {
              <div className="bg-white border border-gray-200 p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Mest diskuterte kategorier</h3>
                 <div className="space-y-4">
-                  {['Helse og omsorg', 'Energi og miljø', 'Utdanning og forskning', 'Finans og økonomi'].map((category) => (
+                  {['Helse og omsorg', 'Energi og miljø', 'Utdanning og forskning', 'Finans og økonomi'].map((category, index) => (
                     <div key={category} className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700 hover:text-indigo-600 cursor-pointer">{category}</span>
                       <span className="px-2 py-0.5 bg-gray-100 text-xs text-gray-500 font-medium">

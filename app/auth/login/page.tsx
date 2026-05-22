@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import FadeIn from '@/components/fade-in';
-import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -20,34 +19,10 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      if (isRegister) {
-        await authClient.signUp.email({
-          email,
-          password,
-          name,
-        }, {
-          onSuccess: (ctx) => {
-            router.push('/min-side');
-          },
-          onError: (ctx) => {
-            alert(ctx.error.message);
-            setIsLoading(false);
-          },
-        });
-      } else {
-        await authClient.signIn.email({
-          email,
-          password,
-        }, {
-           onSuccess: (ctx) => {
-             router.push('/min-side');
-           },
-           onError: (ctx) => {
-             alert(ctx.error.message);
-             setIsLoading(false);
-           }
-        });
-      }
+      // Mock login delay
+      setTimeout(() => {
+        router.push('/min-side');
+      }, 1000);
     } catch (error) {
       console.error('Auth error:', error);
       alert('En feil oppstod under innloggingen.');

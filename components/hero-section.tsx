@@ -7,12 +7,13 @@ import { motion } from 'motion/react';
 export default function HeroSection() {
   return (
     <motion.section 
-      initial={{ backgroundColor: '#ffffff' }}
-      animate={{ backgroundColor: '#f8fafc' }} // slate-50
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }} // Remove hardcoded backgroundColor animation to allow tailwind classes to show
       transition={{ duration: 1.5, ease: 'easeOut' }}
-      className="relative overflow-hidden text-center py-24 px-4 sm:px-6 lg:px-8 border-y border-gray-200"
+      className="relative overflow-hidden text-center py-24 px-4 sm:px-6 lg:px-8 border-y border-gray-200 bg-gradient-to-br from-[#ba0c2f]/10 via-[#ffffff] to-[#00205b]/10"
     >
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-0 left-1/4 -translate-x-1/2 w-[600px] h-[600px] bg-[#ba0c2f]/10 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute animate-pulse-slow bottom-0 right-1/4 translate-x-1/2 w-[600px] h-[600px] bg-[#00205b]/10 blur-[120px] rounded-full pointer-events-none"></div>
       
       <div className="relative z-10 max-w-5xl mx-auto">
         <motion.div 
