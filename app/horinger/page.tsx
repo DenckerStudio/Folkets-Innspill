@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ArrowRight, FileText, Search, Clock, Users } from 'lucide-react';
-import { FadeIn } from '@/components/animations/fade-in';
 
 async function getHoringer() {
   try {
