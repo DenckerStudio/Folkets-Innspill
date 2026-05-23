@@ -1,4 +1,4 @@
-import { Info, Shield, Database, Lock } from 'lucide-react';
+import { Info, Shield, Database, Lock, Map, Lightbulb, MessageSquarePlus } from 'lucide-react';
 
 export default function OmOssPage() {
   return (
@@ -79,6 +79,51 @@ export default function OmOssPage() {
             <li><strong>Norsk lagring:</strong> All data lagres på servere fysisk plassert i Norge eller EU/EØS. Ingen data sendes til tredjeland.</li>
             <li><strong>Sletting:</strong> Du kan når som helst slette din profil og all tilknyttet historikk med ett klikk.</li>
           </ul>
+        </div>
+      </div>
+
+      {/* Roadmap */}
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 md:p-12">
+        <div className="flex items-center mb-6">
+          <Map className="w-8 h-8 text-emerald-600 mr-4" />
+          <h2 className="text-2xl font-bold text-gray-900">Veien videre (Roadmap)</h2>
+        </div>
+        <div className="space-y-8">
+          <div className="relative border-l-2 border-emerald-200 pl-6 pb-2">
+            <div className="absolute w-4 h-4 bg-emerald-500 rounded-full -left-[9px] top-1 ring-4 ring-white"></div>
+            <h3 className="text-lg font-bold text-gray-900">Fase 1: Lansering & Kjernefunksjonalitet (Nå)</h3>
+            <p className="text-gray-600 mt-2">Visning av saker fra Stortinget, forenkling av tekst med AI, og sikker innlogging for å avgi stemme på saker og høringer.</p>
+          </div>
+          <div className="relative border-l-2 border-gray-200 pl-6 pb-2">
+            <div className="absolute w-4 h-4 bg-gray-300 rounded-full -left-[9px] top-1 ring-4 ring-white"></div>
+            <h3 className="text-lg font-bold text-gray-900">Fase 2: Interaksjon & Valgløfter</h3>
+            <p className="text-gray-600 mt-2">Lansering av diskusjonsforum, mulighet for å følge politikere, og sporing av hvorvidt politikere holder sine valgløfter over tid.</p>
+          </div>
+          <div className="relative border-l-2 border-transparent pl-6">
+            <div className="absolute w-4 h-4 bg-gray-300 rounded-full -left-[9px] top-1 ring-4 ring-white"></div>
+            <h3 className="text-lg font-bold text-gray-900">Fase 3: Kommune & Fylkesnivå</h3>
+            <p className="text-gray-600 mt-2">Utvidelse av datagrunnlaget til å inkludere lokale politiske saker fra kommunestyrer og fylkesting for mer lokal innflytelse.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Feedback & Ideas */}
+      <div className="bg-indigo-50 rounded-3xl shadow-sm border border-indigo-100 p-8 md:p-12 flex flex-col md:flex-row items-center gap-8">
+        <div className="flex-1 space-y-4">
+          <div className="flex items-center text-indigo-600">
+            <Lightbulb className="w-8 h-8 mr-4" />
+            <h2 className="text-2xl font-bold text-gray-900">Har du en idé eller funnet en feil?</h2>
+          </div>
+          <p className="text-gray-700 text-lg leading-relaxed">
+            Folkets Stemme utvikles kontinuerlig, og vi ønsker at plattformen skal formes av brukerne. Har du ønsker om ny funksjonalitet, funnet en bug, eller har generelle tilbakemeldinger?
+          </p>
+          <p className="text-indigo-800 font-medium">Bruk knappen for å sende oss dine innspill!</p>
+        </div>
+        <div className="flex-shrink-0 w-full md:w-auto">
+          <a href="mailto:feedback@folketsstemme.no?subject=Innspill%20til%20Folkets%20Stemme" className="w-full md:w-auto flex items-center justify-center px-8 py-4 border border-transparent text-lg font-medium rounded-xl shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+            <MessageSquarePlus className="w-5 h-5 mr-2" />
+            Send innspill
+          </a>
         </div>
       </div>
 
