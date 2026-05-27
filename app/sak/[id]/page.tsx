@@ -39,6 +39,30 @@ function formatEventDate(dateStr: string | null): string | null {
   return dateStr;
 }
 
+const eventLabels: Record<string, string> = {
+  FRADEP: 'Fra departementet',
+  FRAREP: 'Fra representant',
+  SAK: 'Sak opprettet',
+  FREMMET: 'Fremmet',
+  REFS: 'Referert i Stortinget',
+  SENDT: 'Sendt til komité',
+  KOMITE: 'Til komitébehandling',
+  HOERFRIST: 'Høringsfrist',
+  HOER: 'Høring',
+  ORDFORER: 'Saksordfører oppnevnt',
+  INNST: 'Innstilling avgitt',
+  BEHS: 'Behandlet i Stortinget',
+  PLBEHS: 'Planlagt behandling',
+  VOT: 'Votering',
+  VEDTAK: 'Vedtak',
+  DEBATT: 'Debatt',
+  LOV: 'Lov vedtatt',
+};
+
+function cleanSaksgangName(name: string): string {
+  return name.replace(/^K(?=[A-ZÆØÅ][a-zæøå])/, '');
+}
+
 const sakTypeMap: Record<number, string> = {
   0: 'Alminnelig sak',
   1: 'Lovsak',
@@ -220,49 +244,55 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
                 Saksgang
               </h2>
               {saksgang?.navn && (
-                <p className="text-sm text-gray-500 mb-4">{saksgang.navn}</p>
+                <p className="text-sm text-gray-500 mb-4">{cleanSaksgangName(saksgang.navn)}</p>
               )}
               <div className="relative">
                 <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
                 <div className="space-y-4">
                   {saksgangSteg.map((steg: any, i: number) => {
                     const isLast = i === saksgangSteg.length - 1;
-                    const events = (steg.saksgang_hendelse_liste || [])
+                    const allEvents = steg.saksgang_hendelse_liste || [];
+                    const meaningfulEvents = allEvents
                       .filter((h: any) => {
-                        const hasText = !!h.hendelse_tekst;
                         const hasValidDate = h.dato && !h.dato.startsWith('01.01.0001');
-                        return hasText || hasValidDate;
-                      });
-                    const uniqueDates = [...new Set(
-                      events
-                        .map((h: any) => formatEventDate(h.dato))
-                        .filter(Boolean)
-                    )];
+                        return hasValidDate || h.hendelse_tekst;
+                      })
+                      .map((h: any) => ({
+                        label: h.hendelse_tekst || eventLabels[h.id] || null,
+                        date: formatEventDate(h.dato),
+                      }))
+                      .filter((e: any) => e.label || e.date);
+                    const hasAnyEvents = allEvents.length > 0;
+                    const stepDone = meaningfulEvents.length > 0;
 
                     return (
                       <div key={i} className="relative pl-10">
                         <div className={`absolute left-2.5 w-3 h-3 rounded-full border-2 ${
-                          isLast && !ferdigbehandlet
-                            ? 'bg-indigo-500 border-indigo-500'
-                            : ferdigbehandlet
-                              ? 'bg-emerald-500 border-emerald-500'
-                              : 'bg-white border-gray-300'
+                          stepDone && ferdigbehandlet
+                            ? 'bg-emerald-500 border-emerald-500'
+                            : isLast && !ferdigbehandlet
+                              ? 'bg-indigo-500 border-indigo-500'
+                              : stepDone
+                                ? 'bg-indigo-500 border-indigo-500'
+                                : 'bg-white border-gray-300'
                         }`} style={{ top: '0.35rem' }} />
-                        <div className={`text-sm font-semibold ${isLast && !ferdigbehandlet ? 'text-indigo-700' : 'text-gray-800'}`}>
+                        <div className={`text-sm font-semibold ${
+                          !hasAnyEvents && !stepDone ? 'text-gray-400' : 'text-gray-800'
+                        }`}>
                           {steg.navn}
                         </div>
-                        {events.some((h: any) => h.hendelse_tekst) && (
-                          <div className="mt-1 space-y-1">
-                            {events.filter((h: any) => h.hendelse_tekst).map((h: any, j: number) => (
-                              <div key={j} className="text-xs text-gray-500">
-                                {h.hendelse_tekst}
+                        {meaningfulEvents.length > 0 && (
+                          <div className="mt-1.5 space-y-1">
+                            {meaningfulEvents.map((evt: any, j: number) => (
+                              <div key={j} className="flex items-baseline gap-2 text-xs">
+                                {evt.label && (
+                                  <span className="text-gray-600">{evt.label}</span>
+                                )}
+                                {evt.date && (
+                                  <span className="text-gray-400">{evt.date}</span>
+                                )}
                               </div>
                             ))}
-                          </div>
-                        )}
-                        {uniqueDates.length > 0 && (
-                          <div className="mt-1 text-xs text-gray-400">
-                            {uniqueDates.join(', ')}
                           </div>
                         )}
                       </div>
