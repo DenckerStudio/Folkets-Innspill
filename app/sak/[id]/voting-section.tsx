@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ThumbsUp, ThumbsDown, Minus, CheckCircle } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Minus, CheckCircle, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSession } from '@/lib/auth-client';
+import Link from 'next/link';
 
 function AnimatedPercent({ value, initialValue = 0 }: { value: number, initialValue?: number }) {
   const [displayValue, setDisplayValue] = useState(initialValue);
@@ -48,37 +50,101 @@ interface VotingSectionProps {
     total: number;
   };
   sakId: string;
+  sakTitle?: string;
+  sakSummary?: string;
 }
 
-export default function VotingSection({ initialVotes, sakId }: VotingSectionProps) {
+export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummary }: VotingSectionProps) {
   const [votes, setVotes] = useState(initialVotes);
   const [userVote, setUserVote] = useState<'for' | 'against' | 'abstain' | null>(null);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { data: session } = useSession();
 
-  const handleVote = (type: 'for' | 'against' | 'abstain') => {
-    if (userVote) return;
+  const handleVote = async (type: 'for' | 'against' | 'abstain') => {
+    if (userVote || isSubmitting) return;
     
-    setUserVote(type);
-    setVotes(prev => ({
-      ...prev,
-      [type]: prev[type] + 1,
-      total: prev.total + 1
-    }));
+    if (!session?.user) {
+      setError('Du må logge inn for å stemme.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issueId: sakId,
+          vote: type,
+          title: sakTitle,
+          summary: sakSummary,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Kunne ikke registrere stemme.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      setUserVote(type);
+      if (data.totals) {
+        const totals = data.totals;
+        setVotes({
+          for: totals.for || 0,
+          against: totals.against || 0,
+          abstain: totals.abstain || 0,
+          total: (totals.for || 0) + (totals.against || 0) + (totals.abstain || 0),
+        });
+      } else {
+        setVotes(prev => ({
+          ...prev,
+          [type]: prev[type] + 1,
+          total: prev.total + 1
+        }));
+      }
+    } catch (e) {
+      setError('En feil oppstod. Prøv igjen.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const forPercent = Math.round((votes.for / votes.total) * 100) || 0;
-  const againstPercent = Math.round((votes.against / votes.total) * 100) || 0;
-  const abstainPercent = Math.round((votes.abstain / votes.total) * 100) || 0;
+  const total = votes.total || 1;
+  const forPercent = Math.round((votes.for / total) * 100);
+  const againstPercent = Math.round((votes.against / total) * 100);
+  const abstainPercent = Math.round((votes.abstain / total) * 100);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Hva mener du?</h2>
       
+      {!session?.user && (
+        <div className="mb-6 text-center">
+          <Link href="/auth/login" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500 font-medium">
+            <LogIn className="w-4 h-4 mr-1.5" />
+            Logg inn for å stemme
+          </Link>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 text-center text-sm font-medium text-red-600 bg-red-50 py-2 rounded-lg">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-4 mb-8">
         <motion.button 
           whileTap={!userVote ? { scale: 0.95 } : {}}
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('for')}
-          disabled={userVote !== null}
+          disabled={userVote !== null || isSubmitting}
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'for' 
               ? 'border-emerald-500 bg-emerald-100 text-emerald-800 shadow-md ring-2 ring-emerald-500 ring-offset-2' 
@@ -110,7 +176,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
           whileTap={!userVote ? { scale: 0.95 } : {}}
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('abstain')}
-          disabled={userVote !== null}
+          disabled={userVote !== null || isSubmitting}
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'abstain' 
               ? 'border-gray-400 bg-gray-200 text-gray-800 shadow-md ring-2 ring-gray-400 ring-offset-2' 
@@ -142,7 +208,7 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
           whileTap={!userVote ? { scale: 0.95 } : {}}
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('against')}
-          disabled={userVote !== null}
+          disabled={userVote !== null || isSubmitting}
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'against' 
               ? 'border-rose-500 bg-rose-100 text-rose-800 shadow-md ring-2 ring-rose-500 ring-offset-2' 
@@ -185,42 +251,48 @@ export default function VotingSection({ initialVotes, sakId }: VotingSectionProp
 
       <div className="space-y-4">
         <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider text-center">Folkets mening hittil</h3>
-        <div className="h-4 flex rounded-full overflow-hidden bg-gray-100 shadow-inner">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${forPercent}%` }} 
-            transition={{ type: 'spring', bounce: 0, duration: 1 }}
-            className="bg-emerald-500 relative flex items-center justify-center" 
-            title={`For: ${forPercent}%`}
-          >
-            {forPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={forPercent} /></span>}
-          </motion.div>
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${abstainPercent}%` }} 
-            transition={{ type: 'spring', bounce: 0, duration: 1 }}
-            className="bg-gray-400 relative flex items-center justify-center" 
-            title={`Avstår: ${abstainPercent}%`}
-          >
-            {abstainPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={abstainPercent} /></span>}
-          </motion.div>
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${againstPercent}%` }} 
-            transition={{ type: 'spring', bounce: 0, duration: 1 }}
-            className="bg-rose-500 relative flex items-center justify-center" 
-            title={`Mot: ${againstPercent}%`}
-          >
-            {againstPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={againstPercent} /></span>}
-          </motion.div>
-        </div>
-        <div className="flex justify-between text-sm text-gray-600 font-medium px-1">
-          <span className="text-emerald-600">For</span>
-          <span className="text-gray-500">Avstår</span>
-          <span className="text-rose-600">Mot</span>
-        </div>
+        {votes.total > 0 ? (
+          <>
+            <div className="h-4 flex rounded-full overflow-hidden bg-gray-100 shadow-inner">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${forPercent}%` }} 
+                transition={{ type: 'spring', bounce: 0, duration: 1 }}
+                className="bg-emerald-500 relative flex items-center justify-center" 
+                title={`For: ${forPercent}%`}
+              >
+                {forPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={forPercent} /></span>}
+              </motion.div>
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${abstainPercent}%` }} 
+                transition={{ type: 'spring', bounce: 0, duration: 1 }}
+                className="bg-gray-400 relative flex items-center justify-center" 
+                title={`Avstår: ${abstainPercent}%`}
+              >
+                {abstainPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={abstainPercent} /></span>}
+              </motion.div>
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${againstPercent}%` }} 
+                transition={{ type: 'spring', bounce: 0, duration: 1 }}
+                className="bg-rose-500 relative flex items-center justify-center" 
+                title={`Mot: ${againstPercent}%`}
+              >
+                {againstPercent > 10 && <span className="text-[10px] font-bold text-white opacity-80"><AnimatedPercent value={againstPercent} /></span>}
+              </motion.div>
+            </div>
+            <div className="flex justify-between text-sm text-gray-600 font-medium px-1">
+              <span className="text-emerald-600">For</span>
+              <span className="text-gray-500">Avstår</span>
+              <span className="text-rose-600">Mot</span>
+            </div>
+          </>
+        ) : (
+          <p className="text-center text-sm text-gray-400">Ingen har stemt ennå. Vær den første!</p>
+        )}
         <p className="text-center text-xs text-gray-400 mt-4">
-          Din stemme lagres anonymt (hashing av BankID) i tråd med GDPR.
+          Din stemme lagres anonymt i tråd med GDPR.
         </p>
       </div>
     </div>

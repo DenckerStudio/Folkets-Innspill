@@ -1,5 +1,7 @@
 'use server';
 
+import { getAnonSupabase } from './supabase';
+
 export interface StortingetSak {
   id: number;
   tittel: string;
@@ -26,6 +28,37 @@ function parseStortingetDate(dateStr: string): string {
   return dateStr;
 }
 
+async function getVoteTotals(issueIds: string[]): Promise<Record<string, { for: number; against: number; abstain: number; total: number }>> {
+  const result: Record<string, { for: number; against: number; abstain: number; total: number }> = {};
+  
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return result;
+  }
+
+  try {
+    const supabase = getAnonSupabase();
+    const { data: votes } = await supabase
+      .from('citizen_votes')
+      .select('stortinget_issue_id, choice')
+      .in('stortinget_issue_id', issueIds);
+
+    if (votes) {
+      for (const vote of votes) {
+        if (!result[vote.stortinget_issue_id]) {
+          result[vote.stortinget_issue_id] = { for: 0, against: 0, abstain: 0, total: 0 };
+        }
+        const bucket = result[vote.stortinget_issue_id];
+        bucket[vote.choice as 'for' | 'against' | 'abstain']++;
+        bucket.total++;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch vote totals from Supabase:', e);
+  }
+
+  return result;
+}
+
 export async function getSaker(): Promise<any[]> {
   try {
     const res = await fetch('https://data.stortinget.no/eksport/saker?stortingssesjonid=2025-2026&format=json', {
@@ -34,23 +67,26 @@ export async function getSaker(): Promise<any[]> {
     if (!res.ok) throw new Error('Failed to fetch saker');
     const data = await res.json();
     
-    return data.saker_liste.map((sak: StortingetSak) => ({
+    const saker = data.saker_liste.map((sak: StortingetSak) => ({
       id: sak.id.toString(),
       title: sak.korttittel || sak.tittel,
       summary: sak.tittel,
       category: sak.emne_liste && sak.emne_liste.length > 0 ? sak.emne_liste[0].navn : 'Generelt',
       date: parseStortingetDate(sak.sist_oppdatert_dato),
-      votes: {
-        for: ((parseInt(sak.id.toString()) || 123) * 17) % 6000 + 4000,
-        against: ((parseInt(sak.id.toString()) || 123) * 23) % 4000 + 1000,
-        abstain: ((parseInt(sak.id.toString()) || 123) * 7) % 500,
-        total: 0
-      },
+      votes: { for: 0, against: 0, abstain: 0, total: 0 },
       status: sak.status === 1 ? 'pending' : 'closed',
-    })).map((sak: any) => {
-      sak.votes.total = sak.votes.for + sak.votes.against + sak.votes.abstain;
-      return sak;
-    });
+    }));
+
+    const issueIds = saker.map((s: any) => s.id);
+    const voteTotals = await getVoteTotals(issueIds);
+
+    for (const sak of saker) {
+      if (voteTotals[sak.id]) {
+        sak.votes = voteTotals[sak.id];
+      }
+    }
+
+    return saker;
   } catch (error) {
     console.error("Error fetching saker:", error);
     return [];

@@ -1,12 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageSquare, ShieldCheck } from 'lucide-react';
+import { useSession } from '@/lib/auth-client';
 
-export default function PoliticianResponseForm() {
-  const [isVerifiedPolitician, setIsVerifiedPolitician] = useState(true); // Mocked state
+export default function PoliticianResponseForm({ sakId }: { sakId?: string }) {
+  const { data: session } = useSession();
+  const [isVerifiedPolitician, setIsVerifiedPolitician] = useState(false);
   const [response, setResponse] = useState('');
   const [isPublished, setIsPublished] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!session?.user) {
+      setIsVerifiedPolitician(false);
+      return;
+    }
+
+    fetch('/api/user/politician-status')
+      .then(res => res.json())
+      .then(data => setIsVerifiedPolitician(data.isVerified || false))
+      .catch(() => setIsVerifiedPolitician(false));
+  }, [session]);
 
   if (!isVerifiedPolitician) return null;
 
@@ -23,6 +38,30 @@ export default function PoliticianResponseForm() {
       </div>
     );
   }
+
+  const handlePublish = async () => {
+    if (!response.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch('/api/politician/response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stortinget_issue_id: sakId,
+          content: response.trim(),
+        }),
+      });
+
+      if (res.ok) {
+        setIsPublished(true);
+      }
+    } catch (e) {
+      console.error('Failed to publish response:', e);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 p-8 mb-8">
@@ -42,11 +81,11 @@ export default function PoliticianResponseForm() {
       ></textarea>
       <div className="flex justify-end">
         <button 
-          onClick={() => setIsPublished(true)}
-          disabled={!response.trim()}
+          onClick={handlePublish}
+          disabled={!response.trim() || isSubmitting}
           className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Publiser svar
+          {isSubmitting ? 'Publiserer...' : 'Publiser svar'}
         </button>
       </div>
     </div>
