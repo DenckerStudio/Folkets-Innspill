@@ -1,10 +1,16 @@
 import { betterAuth } from "better-auth";
 import { phoneNumber } from "better-auth/plugins/phone-number";
+import { dash } from "@better-auth/infra";
 import { Pool } from "pg";
 import { getServiceSupabase } from "./supabase";
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_API_KEY,
+  baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: [
+    "https://folkets-stemme.no",
+    "https://www.folkets-stemme.no",
+  ],
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
   }),
@@ -22,6 +28,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    dash(),
     phoneNumber({
       sendOTP: async ({ phoneNumber: phone, code }) => {
         if (process.env.SMS_PROVIDER === "twilio") {
