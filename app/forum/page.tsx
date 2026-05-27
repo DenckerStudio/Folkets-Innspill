@@ -1,57 +1,100 @@
 import Link from 'next/link';
 import { MessageSquare, ThumbsUp, MessageCircle, Clock, CheckCircle } from 'lucide-react';
 import FadeIn from '@/components/fade-in';
-import { getSaker } from '@/lib/stortinget';
+import { getAnonSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ForumPage() {
-  // We'll mock some forum topics and relate them to actual issues
-  const issues = await getSaker();
-  const topIssues = issues.slice(0, 3);
-  
-  const mockTopics = [
-    {
-      id: '1',
-      title: 'Hvorfor stemte Arbeiderpartiet mot i saken om strømstøtte?',
-      author: 'Ola Nordmann',
-      createdAt: '2 timer siden',
-      replies: 45,
-      likes: 120,
-      relatedIssue: topIssues[0],
-      isResolved: true
-    },
-    {
-      id: '2',
-      title: 'Dette forslaget om endring i skatteloven treffer de med lavest inntekt hardest.',
-      author: 'Kari Trasti',
-      createdAt: '5 timer siden',
-      replies: 12,
-      likes: 89,
-      relatedIssue: topIssues[1],
-      isResolved: false
-    },
-    {
-      id: '3',
-      title: 'Når forventes det at den nye helsereformen trer i kraft?',
-      author: 'Jens Haugland',
-      createdAt: '1 dag siden',
-      replies: 8,
-      likes: 34,
-      relatedIssue: topIssues[2],
-      isResolved: false
-    },
-    {
-      id: '4',
-      title: 'Kan noen forklare konsekvensene av vedtaket om rusreformen?',
-      author: 'Silje Solbakken',
-      createdAt: '2 dager siden',
-      replies: 156,
-      likes: 450,
-      relatedIssue: null,
-      isResolved: true
+async function getForumThreads() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return [];
+  }
+
+  try {
+    const supabase = getAnonSupabase();
+    const { data: threads, error } = await supabase
+      .from('forum_threads')
+      .select(`
+        id,
+        title,
+        body,
+        stortinget_issue_id,
+        is_resolved,
+        created_at,
+        author_user_id,
+        users:author_user_id (name)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error('Error fetching forum threads:', error);
+      return [];
     }
-  ];
+
+    const threadIds = (threads || []).map(t => t.id);
+    
+    let replyCounts: Record<string, number> = {};
+    let likeCounts: Record<string, number> = {};
+
+    if (threadIds.length > 0) {
+      const { data: replies } = await supabase
+        .from('forum_replies')
+        .select('thread_id')
+        .in('thread_id', threadIds);
+      
+      if (replies) {
+        for (const r of replies) {
+          replyCounts[r.thread_id] = (replyCounts[r.thread_id] || 0) + 1;
+        }
+      }
+
+      const { data: likes } = await supabase
+        .from('forum_likes')
+        .select('target_id')
+        .eq('target_type', 'thread')
+        .in('target_id', threadIds);
+      
+      if (likes) {
+        for (const l of likes) {
+          likeCounts[l.target_id] = (likeCounts[l.target_id] || 0) + 1;
+        }
+      }
+    }
+
+    return (threads || []).map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      author: (thread.users as any)?.name || 'Anonym',
+      createdAt: formatTimeAgo(thread.created_at),
+      replies: replyCounts[thread.id] || 0,
+      likes: likeCounts[thread.id] || 0,
+      relatedIssueId: thread.stortinget_issue_id,
+      isResolved: thread.is_resolved,
+    }));
+  } catch (e) {
+    console.error('Failed to fetch forum threads:', e);
+    return [];
+  }
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Akkurat nå';
+  if (diffMins < 60) return `${diffMins} min siden`;
+  if (diffHours < 24) return `${diffHours} timer siden`;
+  if (diffDays === 1) return '1 dag siden';
+  return `${diffDays} dager siden`;
+}
+
+export default async function ForumPage() {
+  const topics = await getForumThreads();
 
   return (
     <div className="max-w-5xl mx-auto space-y-12">
@@ -65,66 +108,65 @@ export default async function ForumPage() {
       </FadeIn>
 
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Main Content */}
         <div className="flex-1 space-y-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Nylige diskusjoner</h2>
-            <button className="px-4 py-2 bg-indigo-600 text-white font-medium text-sm flex items-center hover:bg-indigo-700 transition-colors shadow-sm">
+            <Link href="/auth/login" className="px-4 py-2 bg-indigo-600 text-white font-medium text-sm flex items-center hover:bg-indigo-700 transition-colors shadow-sm">
               <MessageSquare className="w-4 h-4 mr-2" />
               Start ny diskusjon
-            </button>
+            </Link>
           </div>
 
-          <div className="space-y-4">
-            {mockTopics.map((topic, index) => (
-              <FadeIn key={topic.id} delay={0.1 * index} direction="up">
-                <Link href={`/forum/${topic.id}`} className="block bg-white p-6 border border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 pr-4">
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors flex items-center">
-                        {topic.title}
-                        {topic.isResolved && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Besvart av politiker
+          {topics.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p className="text-lg font-medium">Ingen diskusjoner ennå</p>
+              <p className="text-sm mt-2">Vær den første til å starte en diskusjon!</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {topics.map((topic, index) => (
+                <FadeIn key={topic.id} delay={0.1 * index} direction="up">
+                  <Link href={`/forum/${topic.id}`} className="block bg-white p-6 border border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 pr-4">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors flex items-center">
+                          {topic.title}
+                          {topic.isResolved && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Besvart av politiker
+                            </span>
+                          )}
+                        </h3>
+                        
+                        <div className="flex items-center text-sm text-gray-500 space-x-4">
+                          <span className="font-medium text-gray-700">Av {topic.author}</span>
+                          <span className="flex items-center">
+                            <Clock className="w-4 h-4 mr-1 text-gray-400" />
+                            {topic.createdAt}
                           </span>
-                        )}
-                      </h3>
-                      
-                      {topic.relatedIssue && (
-                        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 text-sm">
-                          <span className="text-gray-500 font-medium">Relatert sak: </span>
-                          <span className="text-indigo-600 hover:underline">{topic.relatedIssue.title}</span>
                         </div>
-                      )}
+                      </div>
                       
-                      <div className="flex items-center text-sm text-gray-500 space-x-4">
-                        <span className="font-medium text-gray-700">Av {topic.author}</span>
-                        <span className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1 text-gray-400" />
-                          {topic.createdAt}
+                      <div className="flex flex-col items-end space-y-2 text-sm text-gray-500 pr-2">
+                         <span className="flex items-center font-medium">
+                          <ThumbsUp className="w-4 h-4 mr-1.5 text-gray-400" />
+                          {topic.likes}
+                        </span>
+                        <span className="flex items-center font-medium">
+                          <MessageCircle className="w-4 h-4 mr-1.5 text-gray-400" />
+                          {topic.replies}
                         </span>
                       </div>
                     </div>
-                    
-                    <div className="flex flex-col items-end space-y-2 text-sm text-gray-500 pr-2">
-                       <span className="flex items-center font-medium">
-                        <ThumbsUp className="w-4 h-4 mr-1.5 text-gray-400" />
-                        {topic.likes}
-                      </span>
-                      <span className="flex items-center font-medium">
-                        <MessageCircle className="w-4 h-4 mr-1.5 text-gray-400" />
-                        {topic.replies}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              </FadeIn>
-            ))}
-          </div>
+                  </Link>
+                </FadeIn>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Sidebar */}
         <div className="w-full md:w-80 space-y-8">
            <FadeIn delay={0.3} direction="left">
              <div className="bg-indigo-50 border border-indigo-100 p-6 shadow-sm">
@@ -132,7 +174,7 @@ export default async function ForumPage() {
                 <ul className="space-y-3 text-sm text-indigo-800">
                   <li className="flex items-start">
                     <span className="mr-2 mt-0.5 font-bold">•</span>
-                    Du må være logget inn med BankID for å skrive innlegg.
+                    Du må være logget inn for å skrive innlegg.
                   </li>
                   <li className="flex items-start">
                     <span className="mr-2 mt-0.5 font-bold">•</span>
@@ -143,22 +185,6 @@ export default async function ForumPage() {
                     Hold en saklig og respektfull tone.
                   </li>
                 </ul>
-             </div>
-           </FadeIn>
-           
-           <FadeIn delay={0.4} direction="left">
-             <div className="bg-white border border-gray-200 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Mest diskuterte kategorier</h3>
-                <div className="space-y-4">
-                  {['Helse og omsorg', 'Energi og miljø', 'Utdanning og forskning', 'Finans og økonomi'].map((category, index) => (
-                    <div key={category} className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700 hover:text-indigo-600 cursor-pointer">{category}</span>
-                      <span className="px-2 py-0.5 bg-gray-100 text-xs text-gray-500 font-medium">
-                        {((index * 13) % 90) + 10} innlegg
-                      </span>
-                    </div>
-                  ))}
-                </div>
              </div>
            </FadeIn>
         </div>

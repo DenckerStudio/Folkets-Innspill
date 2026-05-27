@@ -22,7 +22,7 @@ const partyLogos: Record<string, string> = {
 };
 
 export default function PolitikerHubPage() {
-  const [isVerified, setIsVerified] = useState(true); // Mocking logged in state
+  const [isVerified, setIsVerified] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [issues, setIssues] = useState<any[]>([]);
   const [representanter, setRepresentanter] = useState<StortingetRepresentant[]>([]);
@@ -60,6 +60,12 @@ export default function PolitikerHubPage() {
         setRepresentanter(data);
       }
     });
+    fetch('/api/user/politician-status')
+      .then(res => res.json())
+      .then(data => {
+        if (isMountedLocal) setIsVerified(data.isVerified || false);
+      })
+      .catch(() => {});
     return () => {
       isMountedLocal = false;
     };

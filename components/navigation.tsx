@@ -2,14 +2,23 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Search, User, BarChart2, Info, LogIn, MessageSquare, FileEdit, Bell, Menu, X } from 'lucide-react';
+import { Home, Search, User, BarChart2, Info, LogIn, LogOut, MessageSquare, FileEdit, Bell, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSession, signOut } from '@/lib/auth-client';
+import { useRouter } from 'next/navigation';
 
 export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
   };
 
   const navLinks = [
@@ -20,6 +29,8 @@ export function Navigation() {
     { href: '/forum', icon: MessageSquare, label: 'Forum' },
     { href: '/om-oss', icon: Info, label: 'Om oss' },
   ];
+
+  const isLoggedIn = !!session?.user;
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -45,24 +56,13 @@ export function Navigation() {
                                A 40 40 0 0 1 40 0 Z" />
                     </clipPath>
                     <g clipPath="url(#bubble)">
-                      {/* Background Red */}
                       <rect width="200" height="250" fill="#ba0c2f" />
-                      
-                      {/* White Cross */}
                       <rect x="60" y="0" width="30" height="250" fill="white" />
                       <rect x="0" y="80" width="200" height="30" fill="white" />
-                      
-                      {/* Blue Cross */}
                       <rect x="70" y="0" width="10" height="250" fill="#00205b" />
                       <rect x="0" y="90" width="200" height="10" fill="#00205b" />
-                
-                      {/* Red section below chart line */}
                       <path d="M 0 150 L 90 60 L 120 90 L 220 -10 L 220 250 L 0 250 Z" fill="#ba0c2f" />
-                      
-                      {/* White chart line */}
                       <path d="M -10 160 L 90 60 L 120 90 L 230 -20" fill="none" stroke="white" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" />
-                      
-                      {/* Chart node */}
                       <circle cx="120" cy="90" r="14" fill="#00205b" stroke="white" strokeWidth="6" />
                     </g>
                   </svg>
@@ -89,19 +89,38 @@ export function Navigation() {
           </div>
 
           <div className="hidden lg:ml-6 lg:flex lg:items-center space-x-4">
-            <Link href="/min-side?tab=varsler" className="relative text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
-              <span className="sr-only">Varsler</span>
-            </Link>
-            <Link href="/min-side" className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
-              <User className="w-5 h-5" />
-              <span className="sr-only">Min side</span>
-            </Link>
-            <Link href="/auth/login" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-              <LogIn className="w-4 h-4 mr-2" />
-              Logg inn
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link href="/min-side?tab=varsler" className="relative text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
+                  <Bell className="w-5 h-5" />
+                  <span className="sr-only">Varsler</span>
+                </Link>
+                <Link href="/min-side" className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold">
+                    {session.user.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 hidden xl:inline">{session.user.name}</span>
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logg ut
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/min-side" className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
+                  <User className="w-5 h-5" />
+                  <span className="sr-only">Min side</span>
+                </Link>
+                <Link href="/auth/login" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Logg inn
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="flex items-center lg:hidden">
@@ -144,29 +163,33 @@ export function Navigation() {
             </div>
             <div className="pt-4 pb-4 border-t border-gray-200">
               <div className="flex items-center px-4 space-x-4">
-                <Link 
-                  href="/min-side?tab=varsler" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex-shrink-0 relative p-2 text-gray-500 hover:text-gray-900 bg-gray-50 rounded-full"
-                >
-                  <Bell className="h-6 w-6" />
-                  <span className="absolute top-1.5 right-1.5 block h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
-                </Link>
-                <Link 
-                  href="/min-side" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-900 bg-gray-50 rounded-full"
-                >
-                  <User className="h-6 w-6" />
-                </Link>
-                <Link 
-                  href="/auth/login" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                >
-                  <LogIn className="w-5 h-5 mr-2" />
-                  Logg inn
-                </Link>
+                {isLoggedIn ? (
+                  <>
+                    <Link 
+                      href="/min-side" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-900 bg-gray-50 rounded-full"
+                    >
+                      <User className="h-6 w-6" />
+                    </Link>
+                    <button 
+                      onClick={() => { handleSignOut(); setIsMobileMenuOpen(false); }}
+                      className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      <LogOut className="w-5 h-5 mr-2" />
+                      Logg ut
+                    </button>
+                  </>
+                ) : (
+                  <Link 
+                    href="/auth/login" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    <LogIn className="w-5 h-5 mr-2" />
+                    Logg inn
+                  </Link>
+                )}
               </div>
             </div>
           </motion.div>
@@ -175,4 +198,3 @@ export function Navigation() {
     </nav>
   );
 }
-

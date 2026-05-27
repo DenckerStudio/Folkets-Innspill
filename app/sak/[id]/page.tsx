@@ -106,12 +106,12 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
 
       {/* Politician Response Form */}
       <FadeIn delay={0.4} direction="up">
-        <PoliticianResponseForm />
+        <PoliticianResponseForm sakId={sak.id} />
       </FadeIn>
 
       {/* Voting Section */}
       <FadeIn delay={0.5} direction="up">
-        <VotingSection initialVotes={sak.votes} sakId={sak.id} />
+        <VotingSection initialVotes={sak.votes} sakId={sak.id} sakTitle={sak.title} sakSummary={sak.summary} />
       </FadeIn>
     </div>
   );
