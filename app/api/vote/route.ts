@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
+import { ensureDomainUser } from '@/lib/ensure-domain-user';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Du må være logget inn for å stemme' }, { status: 401 });
     }
 
+    await ensureDomainUser(user);
+
     const service = getServiceSupabase();
     const { data, error } = await service.rpc('cast_vote', {
       p_user_id: user.id,
@@ -35,9 +38,6 @@ export async function POST(request: Request) {
     if (error) {
       if (error.message?.includes('Already voted')) {
         return NextResponse.json({ error: 'Du har allerede stemt på denne saken' }, { status: 409 });
-      }
-      if (error.message?.includes('Identity not verified')) {
-        return NextResponse.json({ error: 'Din identitet er ikke verifisert ennå' }, { status: 403 });
       }
       console.error('Vote RPC error:', error);
       return NextResponse.json({ error: 'Kunne ikke registrere stemme' }, { status: 500 });
