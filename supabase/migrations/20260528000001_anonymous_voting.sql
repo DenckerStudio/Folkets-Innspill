@@ -76,6 +76,17 @@ CREATE POLICY stortinget_issues_select_all ON public.stortinget_issues
   FOR SELECT TO authenticated, anon
   USING (true);
 
+-- CREATE OR REPLACE cannot change return type; drop legacy signatures first
+DROP FUNCTION IF EXISTS public.cast_vote(uuid, text, text, text, text);
+DROP FUNCTION IF EXISTS public.cast_vote(uuid, text, text);
+DROP FUNCTION IF EXISTS public.get_user_vote_history(uuid);
+DROP FUNCTION IF EXISTS public.get_user_vote_on_issue(uuid, text);
+DROP FUNCTION IF EXISTS public.get_vote_totals_batch(text[]);
+DROP FUNCTION IF EXISTS public.get_issue_vote_totals(text);
+DROP FUNCTION IF EXISTS public.decrypt_vote_choice(uuid, bytea);
+DROP FUNCTION IF EXISTS public.encrypt_vote_choice(uuid, text);
+DROP FUNCTION IF EXISTS public.vote_encryption_key(uuid);
+
 -- Derive per-user encryption key material (pepper should be set in Supabase Vault / app.settings)
 CREATE OR REPLACE FUNCTION public.vote_encryption_key(p_user_id uuid)
 RETURNS text

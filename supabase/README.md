@@ -11,7 +11,7 @@ Or paste `supabase/migrations/*.sql` into the Supabase SQL editor.
 
 ## Voting setup
 
-1. Apply `20260528000001_anonymous_voting.sql` (requires `pgcrypto` in the `extensions` schema — standard on Supabase).
+1. Apply `20260528000001_anonymous_voting.sql` (requires `pgcrypto` in the `extensions` schema — standard on Supabase). If you previously created older vote RPCs, the migration drops them first (return type changes are not allowed with `CREATE OR REPLACE` alone).
 2. Set a strong pepper in the database (recommended via [Supabase Vault](https://supabase.com/docs/guides/database/vault)):
 
 ```sql
