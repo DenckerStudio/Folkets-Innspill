@@ -27,4 +27,5 @@
 - **Middleware refreshes auth tokens**: `middleware.ts` runs on every request to refresh Supabase auth cookies via `@supabase/ssr`.
 - **Build warning on `/horinger`**: The `/horinger` route fetches from its own API at build time, causing a non-fatal `DYNAMIC_SERVER_USAGE` error. This is expected.
 - **No automated test suite**: Validation is done via lint, build, and manual testing.
+- **Voting schema**: SQL migrations live in `supabase/migrations/`. Run `supabase db push` (or paste SQL in the dashboard) before vote APIs work. Ballots are in `citizen_votes` (no `user_id`); per-user choices are encrypted in `user_vote_receipts` via `pgcrypto`.
 - **GEMINI_API_KEY is optional**: Without it, AI summaries show a fallback message.
