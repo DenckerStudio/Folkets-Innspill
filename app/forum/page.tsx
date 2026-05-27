@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MessageSquare, ThumbsUp, MessageCircle, Clock, CheckCircle } from 'lucide-react';
 import FadeIn from '@/components/fade-in';
 import { getAnonSupabase } from '@/lib/supabase';
+import NewThreadButton from './new-thread-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +66,7 @@ async function getForumThreads() {
     return (threads || []).map(thread => ({
       id: thread.id,
       title: thread.title,
+      preview: (thread.body || '').slice(0, 120) + ((thread.body || '').length > 120 ? '...' : ''),
       author: (thread.users as any)?.name || 'Anonym',
       createdAt: formatTimeAgo(thread.created_at),
       replies: replyCounts[thread.id] || 0,
@@ -97,9 +99,9 @@ export default async function ForumPage() {
   const topics = await getForumThreads();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12">
+    <div className="max-w-5xl mx-auto space-y-8">
       <FadeIn delay={0.1}>
-        <div className="bg-white p-8 md:p-12 border-b border-gray-200 shadow-sm text-center">
+        <div className="bg-white p-8 md:p-12 border-b border-gray-200 shadow-sm text-center rounded-2xl">
           <h1 className="text-4xl font-extrabold text-gray-900 mb-4 tracking-tight">Community Forum</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Et åpent rom for å diskutere pågående saker, stille spørsmål til politikere, og debattere konsekvensene av stortingsvedtak.
@@ -109,55 +111,60 @@ export default async function ForumPage() {
 
       <div className="flex flex-col md:flex-row gap-8">
         <div className="flex-1 space-y-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Nylige diskusjoner</h2>
-            <Link href="/auth/login" className="px-4 py-2 bg-indigo-600 text-white font-medium text-sm flex items-center hover:bg-indigo-700 transition-colors shadow-sm">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Start ny diskusjon
-            </Link>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-900">Diskusjoner</h2>
+            <NewThreadButton />
           </div>
 
           {topics.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">Ingen diskusjoner ennå</p>
-              <p className="text-sm mt-2">Vær den første til å starte en diskusjon!</p>
-            </div>
+            <FadeIn delay={0.2} direction="up">
+              <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm">
+                <MessageSquare className="w-14 h-14 mx-auto mb-4 text-gray-200" />
+                <p className="text-xl font-semibold text-gray-900 mb-2">Ingen diskusjoner ennå</p>
+                <p className="text-gray-500 mb-6">Vær den første til å starte en diskusjon om en stortingssak!</p>
+              </div>
+            </FadeIn>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {topics.map((topic, index) => (
-                <FadeIn key={topic.id} delay={0.1 * index} direction="up">
-                  <Link href={`/forum/${topic.id}`} className="block bg-white p-6 border border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 pr-4">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors flex items-center">
-                          {topic.title}
-                          {topic.isResolved && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Besvart av politiker
+                <FadeIn key={topic.id} delay={0.05 * Math.min(index, 8)} direction="up">
+                  <Link href={`/forum/${topic.id}`} className="block bg-white p-5 border border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all rounded-xl group">
+                    <div className="flex items-start gap-4">
+                      <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0 mt-0.5">
+                        {topic.author.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="text-base font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors flex items-center flex-wrap gap-2">
+                            {topic.title}
+                            {topic.isResolved && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Besvart
+                              </span>
+                            )}
+                          </h3>
+                          <div className="flex items-center gap-3 text-xs text-gray-400 flex-shrink-0">
+                            <span className="flex items-center gap-1">
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                              {topic.likes}
                             </span>
-                          )}
-                        </h3>
-                        
-                        <div className="flex items-center text-sm text-gray-500 space-x-4">
-                          <span className="font-medium text-gray-700">Av {topic.author}</span>
-                          <span className="flex items-center">
-                            <Clock className="w-4 h-4 mr-1 text-gray-400" />
+                            <span className="flex items-center gap-1">
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              {topic.replies}
+                            </span>
+                          </div>
+                        </div>
+                        {topic.preview && (
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{topic.preview}</p>
+                        )}
+                        <div className="flex items-center text-xs text-gray-400 mt-2 gap-3">
+                          <span className="font-medium text-gray-600">{topic.author}</span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
                             {topic.createdAt}
                           </span>
                         </div>
-                      </div>
-                      
-                      <div className="flex flex-col items-end space-y-2 text-sm text-gray-500 pr-2">
-                         <span className="flex items-center font-medium">
-                          <ThumbsUp className="w-4 h-4 mr-1.5 text-gray-400" />
-                          {topic.likes}
-                        </span>
-                        <span className="flex items-center font-medium">
-                          <MessageCircle className="w-4 h-4 mr-1.5 text-gray-400" />
-                          {topic.replies}
-                        </span>
                       </div>
                     </div>
                   </Link>
@@ -167,26 +174,42 @@ export default async function ForumPage() {
           )}
         </div>
 
-        <div className="w-full md:w-80 space-y-8">
-           <FadeIn delay={0.3} direction="left">
-             <div className="bg-indigo-50 border border-indigo-100 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-indigo-900 mb-3">Slik fungerer forumet</h3>
-                <ul className="space-y-3 text-sm text-indigo-800">
-                  <li className="flex items-start">
-                    <span className="mr-2 mt-0.5 font-bold">•</span>
-                    Du må være logget inn for å skrive innlegg.
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-2 mt-0.5 font-bold">•</span>
-                    Henvend deg direkte til offisielle representanter - de dukker opp med blå hake.
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-2 mt-0.5 font-bold">•</span>
-                    Hold en saklig og respektfull tone.
-                  </li>
-                </ul>
-             </div>
-           </FadeIn>
+        <div className="w-full md:w-72 space-y-6">
+          <FadeIn delay={0.3} direction="left">
+            <div className="bg-indigo-50 border border-indigo-100 p-5 shadow-sm rounded-xl">
+              <h3 className="text-base font-bold text-indigo-900 mb-3">Slik fungerer forumet</h3>
+              <ul className="space-y-2.5 text-sm text-indigo-800">
+                <li className="flex items-start">
+                  <span className="mr-2 mt-0.5 font-bold text-indigo-400">1</span>
+                  Logg inn for å skrive innlegg og svare.
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-0.5 font-bold text-indigo-400">2</span>
+                  Politikere med blå hake kan gi offisielle svar.
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 mt-0.5 font-bold text-indigo-400">3</span>
+                  Hold en saklig og respektfull tone.
+                </li>
+              </ul>
+            </div>
+          </FadeIn>
+
+          <FadeIn delay={0.4} direction="left">
+            <div className="bg-white border border-gray-200 p-5 shadow-sm rounded-xl">
+              <h3 className="text-base font-bold text-gray-900 mb-3">Statistikk</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Diskusjoner</span>
+                  <span className="font-semibold text-gray-900">{topics.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Totalt svar</span>
+                  <span className="font-semibold text-gray-900">{topics.reduce((s, t) => s + t.replies, 0)}</span>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
         </div>
       </div>
     </div>
