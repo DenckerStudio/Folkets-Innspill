@@ -21,6 +21,24 @@ function parseStortingetDate(dateStr: string): string {
   return dateStr;
 }
 
+function formatEventDate(dateStr: string | null): string | null {
+  if (!dateStr || dateStr.startsWith('01.01.0001')) return null;
+  const match = dateStr.match(/\/Date\((\d+)[+-]\d+\)\//);
+  if (match && match[1]) {
+    const d = new Date(parseInt(match[1], 10));
+    return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  const parts = dateStr.split(' ')[0];
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(parts)) {
+    const [day, month, year] = parts.split('.');
+    const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  }
+  return dateStr;
+}
+
 const sakTypeMap: Record<number, string> = {
   0: 'Alminnelig sak',
   1: 'Lovsak',
@@ -209,25 +227,42 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
                 <div className="space-y-4">
                   {saksgangSteg.map((steg: any, i: number) => {
                     const isLast = i === saksgangSteg.length - 1;
-                    const hasEvents = steg.saksgang_hendelse_liste?.length > 0;
+                    const events = (steg.saksgang_hendelse_liste || [])
+                      .filter((h: any) => {
+                        const hasText = !!h.hendelse_tekst;
+                        const hasValidDate = h.dato && !h.dato.startsWith('01.01.0001');
+                        return hasText || hasValidDate;
+                      });
+                    const uniqueDates = [...new Set(
+                      events
+                        .map((h: any) => formatEventDate(h.dato))
+                        .filter(Boolean)
+                    )];
+
                     return (
                       <div key={i} className="relative pl-10">
                         <div className={`absolute left-2.5 w-3 h-3 rounded-full border-2 ${
                           isLast && !ferdigbehandlet
                             ? 'bg-indigo-500 border-indigo-500'
-                            : 'bg-white border-gray-300'
+                            : ferdigbehandlet
+                              ? 'bg-emerald-500 border-emerald-500'
+                              : 'bg-white border-gray-300'
                         }`} style={{ top: '0.35rem' }} />
                         <div className={`text-sm font-semibold ${isLast && !ferdigbehandlet ? 'text-indigo-700' : 'text-gray-800'}`}>
                           {steg.navn}
                         </div>
-                        {hasEvents && (
+                        {events.some((h: any) => h.hendelse_tekst) && (
                           <div className="mt-1 space-y-1">
-                            {steg.saksgang_hendelse_liste.map((h: any, j: number) => (
+                            {events.filter((h: any) => h.hendelse_tekst).map((h: any, j: number) => (
                               <div key={j} className="text-xs text-gray-500">
-                                {h.hendelse_tekst && <span>{h.hendelse_tekst}</span>}
-                                {h.dato && <span className="ml-1">({parseStortingetDate(h.dato)})</span>}
+                                {h.hendelse_tekst}
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {uniqueDates.length > 0 && (
+                          <div className="mt-1 text-xs text-gray-400">
+                            {uniqueDates.join(', ')}
                           </div>
                         )}
                       </div>
