@@ -23,7 +23,7 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -35,8 +35,13 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
-        router.push('/min-side');
-        router.refresh();
+        if (signUpData.session) {
+          router.push('/onboarding');
+          router.refresh();
+        } else {
+          setError('Sjekk e-posten din for en bekreftelseslenke, og logg deretter inn.');
+          setIsRegister(false);
+        }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
