@@ -8,8 +8,65 @@ import ShareButton from './share-button';
 import FadeIn from '@/components/fade-in';
 import ExpandableText from './expandable-text';
 import VotingSection from './voting-section';
+import { getServiceSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+
+const DETAIL_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+async function getCachedSakDetail(sakId: string): Promise<any | null> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return fetchSakDetailDirect(sakId);
+  }
+
+  try {
+    const service = getServiceSupabase();
+    const { data: cached } = await service
+      .from('stortinget_issues')
+      .select('detail_json, last_synced_at')
+      .eq('id', sakId)
+      .single();
+
+    if (cached?.detail_json) {
+      const age = Date.now() - new Date(cached.last_synced_at).getTime();
+      if (age < DETAIL_CACHE_MAX_AGE_MS) {
+        return cached.detail_json;
+      }
+    }
+
+    const detail = await fetchSakDetailDirect(sakId);
+    if (detail) {
+      await service.from('stortinget_issues').upsert(
+        {
+          id: sakId,
+          title: detail.korttittel || detail.tittel || `Sak ${sakId}`,
+          summary: detail.tittel || null,
+          status: detail.ferdigbehandlet ? 'closed' : 'pending',
+          detail_json: detail,
+          last_synced_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+    }
+    return detail || cached?.detail_json || null;
+  } catch (e) {
+    console.error('Cache error, falling back to direct fetch:', e);
+    return fetchSakDetailDirect(sakId);
+  }
+}
+
+async function fetchSakDetailDirect(sakId: string): Promise<any | null> {
+  try {
+    const res = await fetch(
+      `https://data.stortinget.no/eksport/sak?sakid=${sakId}&format=json`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 function parseStortingetDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -80,17 +137,7 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
     notFound();
   }
 
-  let detailedContent: any = null;
-  try {
-    const detailRes = await fetch(`https://data.stortinget.no/eksport/sak?sakid=${sak.id}&format=json`, {
-      next: { revalidate: 3600 }
-    });
-    if (detailRes.ok) {
-      detailedContent = await detailRes.json();
-    }
-  } catch (error) {
-    console.error("Error fetching detailed sak:", error);
-  }
+  const detailedContent = await getCachedSakDetail(sak.id);
 
   const innstillingstekst = detailedContent?.innstillingstekst;
   const kortvedtak = detailedContent?.kortvedtak;
@@ -402,7 +449,7 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
       </FadeIn>
 
       <FadeIn delay={0.3} direction="up">
-        <AiSummary title={sak.title} summary={detailedContent?.tittel || sak.summary} />
+        <AiSummary sakId={sak.id} title={sak.title} summary={detailedContent?.tittel || sak.summary} />
       </FadeIn>
 
       <FadeIn delay={0.4} direction="up">

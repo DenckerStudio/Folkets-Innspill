@@ -1,74 +1,33 @@
 'use client';
 
 import { ShieldCheck, BrainCircuit, Users, Coins, Info } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 
-export default function AiSummary({ title, summary }: { title: string, summary: string }) {
+export default function AiSummary({ sakId, title, summary }: { sakId: string; title: string; summary: string }) {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{ hva: string, hvem: string, kostnad: string } | null>(null);
+  const [data, setData] = useState<{ hva: string; hvem: string; kostnad: string } | null>(null);
 
   useEffect(() => {
     async function fetchSummary() {
       try {
-        const ollamaUrl = process.env.NEXT_PUBLIC_OLLAMA_URL;
-        let responseText = '{}';
-        const systemPrompt = `Du er en nøytral, lokal AI-assistent for "Folkets Stemme". \nDin oppgave er å forenkle følgende stortingssak for vanlige borgere.\nSakstittel: ${title}\nBeskrivelse: ${summary}\n\nSvar KUN med et JSON-objekt med følgende nøkler:\n"hva": Kort forklart, hva handler saken om? (maks 2 setninger)\n"hvem": Hvem påvirkes direkte av dette? (maks 2 setninger)\n"kostnad": Hva er den antatte økonomiske kostnaden eller konsekvensen? (maks 2 setninger)\nSvar på norsk.`;
-
-        if (ollamaUrl) {
-          const res = await fetch(`${ollamaUrl}/api/generate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'llama3',
-              prompt: systemPrompt,
-              stream: false,
-              format: 'json'
-            }),
-          });
-          
-          if (!res.ok) {
-            throw new Error(`Ollama request failed with status ${res.status}`);
-          }
-          const jsonRes = await res.json();
-          responseText = jsonRes.response || '{}';
-        } else {
-          const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
-            contents: systemPrompt,
-            config: {
-              responseMimeType: 'application/json',
-            }
-          });
-          responseText = response.text || '{}';
-        }
-        
-        // Remove markdown formatting if present
-        if (responseText.startsWith('```json')) {
-          responseText = responseText.replace(/```json\n?/, '').replace(/```$/, '');
-        } else if (responseText.startsWith('```')) {
-          responseText = responseText.replace(/```\n?/, '').replace(/```$/, '');
-        }
-        
-        const json = JSON.parse(responseText);
+        const res = await fetch(`/api/sak/${sakId}/ai-summary`);
+        if (!res.ok) throw new Error('Failed to fetch summary');
+        const json = await res.json();
         setData(json);
       } catch (error) {
-        console.error('Failed to generate summary', error);
+        console.error('Failed to fetch AI summary', error);
         setData({
           hva: 'Kunne ikke generere sammendrag for øyeblikket.',
           hvem: 'Ukjent',
-          kostnad: 'Ukjent'
+          kostnad: 'Ukjent',
         });
       } finally {
         setLoading(false);
       }
     }
     fetchSummary();
-  }, [title, summary]);
+  }, [sakId]);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
@@ -91,7 +50,7 @@ export default function AiSummary({ title, summary }: { title: string, summary: 
             <div className="h-4 bg-gray-200 rounded w-5/6"></div>
           </div>
         ) : (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-6"
@@ -103,7 +62,7 @@ export default function AiSummary({ title, summary }: { title: string, summary: 
               </div>
               <p className="text-gray-700 text-sm leading-relaxed">{data?.hva}</p>
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex items-center text-amber-600 font-medium mb-2">
                 <Users className="w-4 h-4 mr-2" />
@@ -111,7 +70,7 @@ export default function AiSummary({ title, summary }: { title: string, summary: 
               </div>
               <p className="text-gray-700 text-sm leading-relaxed">{data?.hvem}</p>
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex items-center text-emerald-600 font-medium mb-2">
                 <Coins className="w-4 h-4 mr-2" />
