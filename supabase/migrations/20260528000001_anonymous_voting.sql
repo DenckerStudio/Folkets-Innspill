@@ -1,7 +1,8 @@
 -- Anonymous citizen voting: ballots (no user link) + encrypted receipts (user ↔ issue only)
 -- Apply via Supabase SQL editor or: supabase db push
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Supabase installs pgcrypto in the "extensions" schema (not public)
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- Issue metadata cache (also used when casting votes)
 CREATE TABLE IF NOT EXISTS public.stortinget_issues (
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.stortinget_issues (
 
 -- Anonymous ballots — no user_id column
 CREATE TABLE IF NOT EXISTS public.citizen_votes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   stortinget_issue_id text NOT NULL REFERENCES public.stortinget_issues (id) ON DELETE CASCADE,
   choice text NOT NULL CHECK (choice IN ('for', 'against', 'abstain')),
   created_at timestamptz NOT NULL DEFAULT now()
@@ -81,15 +82,18 @@ RETURNS text
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
   SELECT encode(
-    digest(
-      p_user_id::text || coalesce(
-        current_setting('app.vote_encryption_secret', true),
-        'folkets-stemme-dev-pepper-change-in-production'
+    extensions.digest(
+      convert_to(
+        p_user_id::text || coalesce(
+          current_setting('app.vote_encryption_secret', true),
+          'folkets-stemme-dev-pepper-change-in-production'
+        ),
+        'UTF8'
       ),
-      'sha256'
+      'sha256'::text
     ),
     'hex'
   );
@@ -100,7 +104,7 @@ RETURNS bytea
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
   SELECT extensions.pgp_sym_encrypt(
     p_choice,
@@ -113,7 +117,7 @@ RETURNS text
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
   SELECT extensions.pgp_sym_decrypt(
     p_encrypted,
