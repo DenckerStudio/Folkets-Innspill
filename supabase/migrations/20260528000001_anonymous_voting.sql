@@ -76,16 +76,30 @@ CREATE POLICY stortinget_issues_select_all ON public.stortinget_issues
   FOR SELECT TO authenticated, anon
   USING (true);
 
--- CREATE OR REPLACE cannot change return type; drop legacy signatures first
-DROP FUNCTION IF EXISTS public.cast_vote(uuid, text, text, text, text);
-DROP FUNCTION IF EXISTS public.cast_vote(uuid, text, text);
-DROP FUNCTION IF EXISTS public.get_user_vote_history(uuid);
-DROP FUNCTION IF EXISTS public.get_user_vote_on_issue(uuid, text);
-DROP FUNCTION IF EXISTS public.get_vote_totals_batch(text[]);
-DROP FUNCTION IF EXISTS public.get_issue_vote_totals(text);
-DROP FUNCTION IF EXISTS public.decrypt_vote_choice(uuid, bytea);
-DROP FUNCTION IF EXISTS public.encrypt_vote_choice(uuid, text);
-DROP FUNCTION IF EXISTS public.vote_encryption_key(uuid);
+-- CREATE OR REPLACE cannot change return type; drop every legacy overload (signatures differ per project)
+DO $$
+DECLARE
+  fn regprocedure;
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure
+    FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname IN (
+        'cast_vote',
+        'get_user_vote_history',
+        'get_user_vote_on_issue',
+        'get_vote_totals_batch',
+        'get_issue_vote_totals',
+        'decrypt_vote_choice',
+        'encrypt_vote_choice',
+        'vote_encryption_key'
+      )
+  LOOP
+    EXECUTE format('DROP FUNCTION IF EXISTS %s CASCADE', fn);
+  END LOOP;
+END $$;
 
 -- Derive per-user encryption key material (pepper should be set in Supabase Vault / app.settings)
 CREATE OR REPLACE FUNCTION public.vote_encryption_key(p_user_id uuid)
