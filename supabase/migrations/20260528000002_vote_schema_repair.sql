@@ -1,10 +1,6 @@
--- Anonymous citizen voting: ballots (no user link) + encrypted receipts (user ↔ issue only)
--- Apply via Supabase SQL editor or: supabase db push
+-- Repair common issues after partial migrations or legacy schema
+-- Run this if voting returns 500 or "function name cast_vote is not unique"
 
--- Supabase installs pgcrypto in the "extensions" schema (not public)
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
-
--- Issue metadata cache (also used when casting votes)
 CREATE TABLE IF NOT EXISTS public.stortinget_issues (
   id text PRIMARY KEY,
   title text,
@@ -16,7 +12,6 @@ CREATE TABLE IF NOT EXISTS public.stortinget_issues (
   ai_summary_generated_at timestamptz
 );
 
--- Anonymous ballots — no user_id column
 CREATE TABLE IF NOT EXISTS public.citizen_votes (
   id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   stortinget_issue_id text NOT NULL REFERENCES public.stortinget_issues (id) ON DELETE CASCADE,
@@ -24,9 +19,10 @@ CREATE TABLE IF NOT EXISTS public.citizen_votes (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_citizen_votes_issue ON public.citizen_votes (stortinget_issue_id);
+-- 1. Legacy citizen_votes may still have user_id (breaks anonymous INSERT)
+ALTER TABLE public.citizen_votes DROP COLUMN IF EXISTS user_id;
 
--- Per-user receipt: proves they voted; choice stored encrypted (not in ballot table)
+-- 2. Ensure receipt table exists (skip if 20260528000001 already applied fully)
 CREATE TABLE IF NOT EXISTS public.user_vote_receipts (
   user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   stortinget_issue_id text NOT NULL REFERENCES public.stortinget_issues (id) ON DELETE CASCADE,
@@ -35,48 +31,13 @@ CREATE TABLE IF NOT EXISTS public.user_vote_receipts (
   PRIMARY KEY (user_id, stortinget_issue_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_vote_receipts_user ON public.user_vote_receipts (user_id);
-
--- Optional identity gate (BankID etc. can set identity_verified = true later)
 CREATE TABLE IF NOT EXISTS public.user_profiles (
   user_id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
   identity_verified boolean NOT NULL DEFAULT true,
   verified_at timestamptz
 );
 
-ALTER TABLE public.stortinget_issues ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.citizen_votes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_vote_receipts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
-
--- No direct ballot reads from clients (aggregates only via RPC)
-DROP POLICY IF EXISTS citizen_votes_deny_all ON public.citizen_votes;
-CREATE POLICY citizen_votes_deny_all ON public.citizen_votes
-  FOR ALL TO authenticated, anon
-  USING (false)
-  WITH CHECK (false);
-
-DROP POLICY IF EXISTS user_vote_receipts_select_own ON public.user_vote_receipts;
-CREATE POLICY user_vote_receipts_select_own ON public.user_vote_receipts
-  FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS user_profiles_select_own ON public.user_profiles;
-CREATE POLICY user_profiles_select_own ON public.user_profiles
-  FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS user_profiles_update_own ON public.user_profiles;
-CREATE POLICY user_profiles_update_own ON public.user_profiles
-  FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS stortinget_issues_select_all ON public.stortinget_issues;
-CREATE POLICY stortinget_issues_select_all ON public.stortinget_issues
-  FOR SELECT TO authenticated, anon
-  USING (true);
-
--- CREATE OR REPLACE cannot change return type; drop every legacy overload (signatures differ per project)
+-- 3. Drop every vote RPC overload, then recreate a single canonical version
 DO $$
 DECLARE
   fn regprocedure;
@@ -101,7 +62,6 @@ BEGIN
   END LOOP;
 END $$;
 
--- Derive per-user encryption key material (pepper should be set in Supabase Vault / app.settings)
 CREATE OR REPLACE FUNCTION public.vote_encryption_key(p_user_id uuid)
 RETURNS text
 LANGUAGE sql
@@ -225,7 +185,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_encrypted bytea;
@@ -292,6 +252,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid vote choice';
   END IF;
 
+  -- Always allow logged-in users to vote (BankID can tighten this later)
   INSERT INTO public.user_profiles (user_id, identity_verified, verified_at)
   VALUES (p_user_id, true, now())
   ON CONFLICT (user_id) DO UPDATE

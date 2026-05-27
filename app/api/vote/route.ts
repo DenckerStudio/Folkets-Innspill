@@ -41,24 +41,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Du må være logget inn for å stemme' }, { status: 401 });
     }
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Vote error: SUPABASE_SERVICE_ROLE_KEY is not configured');
+      return NextResponse.json(
+        { error: 'Stemming er ikke konfigurert på serveren (mangler service role key).' },
+        { status: 503 }
+      );
+    }
+
     const service = getServiceSupabase();
     const { data, error } = await service.rpc('cast_vote', {
       p_user_id: user.id,
       p_issue_id: String(issueId),
       p_choice: vote as VoteChoice,
-      p_title: title || null,
-      p_summary: summary || null,
+      p_title: title ?? null,
+      p_summary: summary ?? null,
     });
 
     if (error) {
-      if (error.message?.includes('Already voted')) {
+      const msg = error.message ?? '';
+      const details = error.details ?? '';
+      const combined = `${msg} ${details}`.toLowerCase();
+
+      if (combined.includes('already voted')) {
         return NextResponse.json({ error: 'Du har allerede stemt på denne saken' }, { status: 409 });
       }
-      if (error.message?.includes('Identity not verified')) {
+      if (combined.includes('identity not verified')) {
         return NextResponse.json({ error: 'Din identitet er ikke verifisert ennå' }, { status: 403 });
       }
-      console.error('Vote RPC error:', error);
-      return NextResponse.json({ error: 'Kunne ikke registrere stemme' }, { status: 500 });
+      if (combined.includes('not unique') || combined.includes('could not choose')) {
+        return NextResponse.json(
+          {
+            error: 'Databasefeil: flere cast_vote-funksjoner. Kjør supabase/migrations/20260528000002_vote_schema_repair.sql.',
+          },
+          { status: 500 }
+        );
+      }
+      if (combined.includes('does not exist') && combined.includes('cast_vote')) {
+        return NextResponse.json(
+          {
+            error: 'Stemme-API er ikke satt opp i databasen. Kjør Supabase-migrasjonene.',
+          },
+          { status: 503 }
+        );
+      }
+
+      console.error('Vote RPC error:', { message: error.message, details: error.details, hint: error.hint, code: error.code });
+      return NextResponse.json(
+        {
+          error: 'Kunne ikke registrere stemme',
+          code: error.code,
+          hint: process.env.NODE_ENV === 'development' ? error.hint ?? error.message : undefined,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
