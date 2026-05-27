@@ -1,17 +1,14 @@
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-let anonClient: SupabaseClient | null = null;
-let serviceClient: SupabaseClient | null = null;
-
-export function getAnonSupabase(): SupabaseClient {
-  if (!anonClient) {
-    anonClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-  }
-  return anonClient;
+export function getBrowserSupabase() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }
+
+let serviceClient: SupabaseClient | null = null;
 
 export function getServiceSupabase(): SupabaseClient {
   if (!serviceClient) {
@@ -21,4 +18,11 @@ export function getServiceSupabase(): SupabaseClient {
     );
   }
   return serviceClient;
+}
+
+export function getAnonSupabase(): SupabaseClient {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }
