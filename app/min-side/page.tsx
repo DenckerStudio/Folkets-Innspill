@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useSession, signOut } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 
 function MinSideContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('historikk');
-  const { data: session, isPending } = useSession();
+  const { user, loading: isPending, signOut } = useAuth();
   const [voteHistory, setVoteHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
@@ -23,7 +23,7 @@ function MinSideContent() {
   }, [resolvedTab]);
 
   useEffect(() => {
-    if (!session?.user) {
+    if (!user) {
       setHistoryLoading(false);
       return;
     }
@@ -37,18 +37,19 @@ function MinSideContent() {
       })
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
-  }, [session]);
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
     router.push('/');
+    router.refresh();
   };
 
   if (isPending) {
     return <div className="p-8 text-center text-gray-500">Laster...</div>;
   }
 
-  if (!session?.user) {
+  if (!user) {
     return (
       <div className="max-w-md mx-auto mt-20 text-center space-y-6">
         <div className="w-20 h-20 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto">
@@ -76,7 +77,7 @@ function MinSideContent() {
           </h2>
           <p className="text-sm text-gray-500 mt-2 flex items-center justify-center md:justify-start">
             <Shield className="w-4 h-4 mr-1 text-emerald-500" />
-            {session.user.name || session.user.email}
+            {user.user_metadata?.full_name || user.email}
           </p>
         </div>
         <div className="mt-4 flex md:mt-0 justify-center">

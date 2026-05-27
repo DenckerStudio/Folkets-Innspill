@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ThumbsUp, ThumbsDown, Minus, CheckCircle, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useSession } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 
 function AnimatedPercent({ value, initialValue = 0 }: { value: number, initialValue?: number }) {
@@ -59,12 +59,12 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
   const [userVote, setUserVote] = useState<'for' | 'against' | 'abstain' | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: session } = useSession();
+  const { user } = useAuth();
 
   const handleVote = async (type: 'for' | 'against' | 'abstain') => {
     if (userVote || isSubmitting) return;
     
-    if (!session?.user) {
+    if (!user) {
       setError('Du må logge inn for å stemme.');
       return;
     }
@@ -124,7 +124,7 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Hva mener du?</h2>
       
-      {!session?.user && (
+      {!user && (
         <div className="mb-6 text-center">
           <Link href="/auth/login" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500 font-medium">
             <LogIn className="w-4 h-4 mr-1.5" />

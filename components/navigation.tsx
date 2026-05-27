@@ -4,12 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Home, Search, User, BarChart2, Info, LogIn, LogOut, MessageSquare, FileEdit, Bell, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useSession, signOut } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 
 export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { data: session, isPending } = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const toggleMobileMenu = () => {
@@ -17,8 +17,10 @@ export function Navigation() {
   };
 
   const handleSignOut = async () => {
-    await signOut();
+    const { getBrowserSupabase } = await import('@/lib/supabase');
+    await getBrowserSupabase().auth.signOut();
     router.push('/');
+    router.refresh();
   };
 
   const navLinks = [
@@ -30,7 +32,8 @@ export function Navigation() {
     { href: '/om-oss', icon: Info, label: 'Om oss' },
   ];
 
-  const isLoggedIn = !!session?.user;
+  const isLoggedIn = !!user;
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -42,18 +45,7 @@ export function Navigation() {
                 <div className="relative hover:opacity-90 transition-opacity flex items-center gap-3">
                   <svg viewBox="0 0 200 250" className="w-12 h-14" xmlns="http://www.w3.org/2000/svg">
                     <clipPath id="bubble">
-                      <path d="M 40 0 
-                               H 160 
-                               A 40 40 0 0 1 200 40 
-                               V 160 
-                               A 40 40 0 0 1 160 200 
-                               H 140 
-                               L 145 240 
-                               L 100 200 
-                               H 40 
-                               A 40 40 0 0 1 0 160 
-                               V 40 
-                               A 40 40 0 0 1 40 0 Z" />
+                      <path d="M 40 0 H 160 A 40 40 0 0 1 200 40 V 160 A 40 40 0 0 1 160 200 H 140 L 145 240 L 100 200 H 40 A 40 40 0 0 1 0 160 V 40 A 40 40 0 0 1 40 0 Z" />
                     </clipPath>
                     <g clipPath="url(#bubble)">
                       <rect width="200" height="250" fill="#ba0c2f" />
@@ -97,9 +89,9 @@ export function Navigation() {
                 </Link>
                 <Link href="/min-side" className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold">
-                    {session.user.name?.charAt(0)?.toUpperCase() || 'U'}
+                    {displayName.charAt(0)?.toUpperCase() || 'U'}
                   </div>
-                  <span className="text-sm font-medium text-gray-700 hidden xl:inline">{session.user.name}</span>
+                  <span className="text-sm font-medium text-gray-700 hidden xl:inline">{displayName}</span>
                 </Link>
                 <button
                   onClick={handleSignOut}
@@ -115,7 +107,7 @@ export function Navigation() {
                   <User className="w-5 h-5" />
                   <span className="sr-only">Min side</span>
                 </Link>
-                <Link href="/auth/login" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                <Link href="/auth/login" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                   <LogIn className="w-4 h-4 mr-2" />
                   Logg inn
                 </Link>
@@ -126,14 +118,10 @@ export function Navigation() {
           <div className="flex items-center lg:hidden">
             <button 
               onClick={toggleMobileMenu}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
             >
               <span className="sr-only">Åpne hovedmeny</span>
-              {isMobileMenuOpen ? (
-                <X className="block h-6 w-6" aria-hidden="true" />
-              ) : (
-                <Menu className="block h-6 w-6" aria-hidden="true" />
-              )}
+              {isMobileMenuOpen ? <X className="block h-6 w-6" /> : <Menu className="block h-6 w-6" />}
             </button>
           </div>
         </div>
@@ -150,12 +138,7 @@ export function Navigation() {
           >
             <div className="px-2 pt-2 pb-3 space-y-1">
               {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-gray-600 hover:bg-gray-50 hover:text-gray-900 flex items-center px-3 py-2 rounded-md text-base font-medium"
-                >
+                <Link key={link.href} href={link.href} onClick={() => setIsMobileMenuOpen(false)} className="text-gray-600 hover:bg-gray-50 hover:text-gray-900 flex items-center px-3 py-2 rounded-md text-base font-medium">
                   <link.icon className="w-5 h-5 mr-3 text-gray-500" />
                   {link.label}
                 </Link>
@@ -165,29 +148,16 @@ export function Navigation() {
               <div className="flex items-center px-4 space-x-4">
                 {isLoggedIn ? (
                   <>
-                    <Link 
-                      href="/min-side" 
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-900 bg-gray-50 rounded-full"
-                    >
+                    <Link href="/min-side" onClick={() => setIsMobileMenuOpen(false)} className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-900 bg-gray-50 rounded-full">
                       <User className="h-6 w-6" />
                     </Link>
-                    <button 
-                      onClick={() => { handleSignOut(); setIsMobileMenuOpen(false); }}
-                      className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                      <LogOut className="w-5 h-5 mr-2" />
-                      Logg ut
+                    <button onClick={() => { handleSignOut(); setIsMobileMenuOpen(false); }} className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50">
+                      <LogOut className="w-5 h-5 mr-2" /> Logg ut
                     </button>
                   </>
                 ) : (
-                  <Link 
-                    href="/auth/login" 
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    <LogIn className="w-5 h-5 mr-2" />
-                    Logg inn
+                  <Link href="/auth/login" onClick={() => setIsMobileMenuOpen(false)} className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    <LogIn className="w-5 h-5 mr-2" /> Logg inn
                   </Link>
                 )}
               </div>

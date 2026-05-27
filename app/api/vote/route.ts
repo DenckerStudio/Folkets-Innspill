@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -17,17 +16,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ugyldig stemmetype' }, { status: 400 });
     }
 
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Du må være logget inn for å stemme' }, { status: 401 });
     }
 
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase.rpc('cast_vote', {
-      p_user_id: session.user.id,
+    const service = getServiceSupabase();
+    const { data, error } = await service.rpc('cast_vote', {
+      p_user_id: user.id,
       p_issue_id: issueId,
       p_choice: vote,
       p_title: title || null,
@@ -45,12 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Kunne ikke registrere stemme' }, { status: 500 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Stemme registrert anonymt',
-      totals: data
-    });
-
+    return NextResponse.json({ success: true, message: 'Stemme registrert anonymt', totals: data });
   } catch (error) {
     console.error('Voting Error:', error);
     return NextResponse.json({ error: 'Kunne ikke registrere stemme' }, { status: 500 });
@@ -66,16 +59,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase.rpc('get_issue_vote_totals', {
-      p_issue_id: issueId,
-    });
-
+    const service = getServiceSupabase();
+    const { data, error } = await service.rpc('get_issue_vote_totals', { p_issue_id: issueId });
     if (error) {
       console.error('Vote totals error:', error);
       return NextResponse.json({ for: 0, against: 0, abstain: 0 });
     }
-
     return NextResponse.json(data || { for: 0, against: 0, abstain: 0 });
   } catch (error) {
     console.error('Error fetching vote totals:', error);

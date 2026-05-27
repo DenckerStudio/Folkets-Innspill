@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Ikke logget inn' }, { status: 401 });
     }
 
@@ -17,19 +17,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Mangler påkrevde felt' }, { status: 400 });
     }
 
-    const supabase = getServiceSupabase();
-    
-    const { data: profile } = await supabase
+    const service = getServiceSupabase();
+    const { data: profile } = await service
       .from('politician_profiles')
       .select('id')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (!profile) {
       return NextResponse.json({ error: 'Ikke verifisert politiker' }, { status: 403 });
     }
 
-    const { error } = await supabase.from('politician_responses').insert({
+    const { error } = await service.from('politician_responses').insert({
       stortinget_issue_id,
       politician_profile_id: profile.id,
       content: content.trim(),
