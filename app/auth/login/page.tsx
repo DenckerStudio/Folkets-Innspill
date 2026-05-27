@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ShieldCheck, ArrowRight, Phone } from 'lucide-react';
+import { ShieldCheck, ArrowRight } from 'lucide-react';
 import FadeIn from '@/components/fade-in';
 import { useRouter } from 'next/navigation';
 import { getBrowserSupabase } from '@/lib/supabase';
@@ -9,12 +9,9 @@ import { getBrowserSupabase } from '@/lib/supabase';
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
-  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
   const supabase = getBrowserSupabase();
@@ -38,7 +35,8 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
-        setShowPhoneVerify(true);
+        router.push('/min-side');
+        router.refresh();
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -73,125 +71,6 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
-  const handleSendOtp = async () => {
-    if (!phone) return;
-    setIsLoading(true);
-    setError('');
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    if (error) {
-      setError('Kunne ikke sende SMS. Sjekk nummeret og prøv igjen.');
-    }
-    setIsLoading(false);
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otp) return;
-    setIsLoading(true);
-    setError('');
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token: otp,
-      type: 'sms',
-    });
-    if (error) {
-      setError('Ugyldig kode. Prøv igjen.');
-      setIsLoading(false);
-      return;
-    }
-    router.push('/min-side');
-    router.refresh();
-  };
-
-  if (showPhoneVerify) {
-    return (
-      <div className="min-h-[80vh] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <FadeIn delay={0.1}>
-          <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center">
-                <Phone className="w-8 h-8 text-emerald-600" />
-              </div>
-            </div>
-            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-              Bekreft telefonnummer
-            </h2>
-            <p className="mt-2 text-center text-sm text-gray-600">
-              For å sikre &quot;én person, én stemme&quot; trenger vi å verifisere telefonnummeret ditt via SMS.
-            </p>
-          </div>
-        </FadeIn>
-
-        <FadeIn delay={0.2} direction="up">
-          <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-            <div className="bg-white py-8 px-4 shadow-sm sm:rounded-3xl sm:px-10 border border-gray-100 space-y-6">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                  {error}
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                  Telefonnummer (med landskode)
-                </label>
-                <div className="mt-1 flex gap-2">
-                  <input
-                    id="phone"
-                    type="tel"
-                    placeholder="+47 XXX XX XXX"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                  <button
-                    onClick={handleSendOtp}
-                    disabled={isLoading || !phone}
-                    className="px-4 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
-                  >
-                    Send SMS
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
-                  Verifiseringskode
-                </label>
-                <div className="mt-1">
-                  <input
-                    id="otp"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm tracking-widest text-center text-lg"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={handleVerifyOtp}
-                disabled={isLoading || !otp}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? 'Verifiserer...' : 'Bekreft og fortsett'}
-              </button>
-
-              <button
-                onClick={() => { router.push('/min-side'); router.refresh(); }}
-                className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
-              >
-                Hopp over for nå
-              </button>
-            </div>
-          </div>
-        </FadeIn>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
