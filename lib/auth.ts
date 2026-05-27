@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { getServiceSupabase } from "./supabase";
 
 export const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_API_KEY,
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
   }),
