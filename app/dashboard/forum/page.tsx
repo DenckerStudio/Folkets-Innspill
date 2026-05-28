@@ -127,7 +127,7 @@ export default async function ForumPage() {
             <div className="space-y-4">
               {topics.map((topic, index) => (
                 <FadeIn key={topic.id} delay={0.1 * index} direction="up">
-                  <Link href={`/forum/${topic.id}`} className="block bg-white p-6 border border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
+                  <Link href={`/dashboard/forum/${topic.id}`} className="block bg-white p-6 border border-gray-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 pr-4">
                         <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors flex items-center">

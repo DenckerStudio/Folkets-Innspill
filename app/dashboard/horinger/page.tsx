@@ -107,7 +107,7 @@ export default async function HoringerPage() {
                 </div>
                 <div className="mt-4 md:mt-0 w-full md:w-auto flex justify-end pl-4">
                   <Link 
-                    href={`/horinger/${hearing.id}`} 
+                    href={`/dashboard/horinger/${hearing.id}`} 
                     className="inline-flex items-center justify-center px-6 py-3 border border-gray-200 shadow-sm text-sm font-medium rounded-xl text-[#00205b] bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors w-full md:w-auto"
                   >
                     Les og gi innspill

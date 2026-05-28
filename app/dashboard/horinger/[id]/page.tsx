@@ -74,7 +74,7 @@ export default async function HoringDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      <Link href="/horinger" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium">
+      <Link href="/dashboard/horinger" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Tilbake til høringer
       </Link>
@@ -109,7 +109,7 @@ export default async function HoringDetailPage({ params }: { params: Promise<{ i
 
         {hearing.stortingetIssueId && (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-8">
-            <Link href={`/sak/${hearing.stortingetIssueId}`} className="text-indigo-600 hover:text-indigo-500 font-medium text-sm">
+            <Link href={`/dashboard/sak/${hearing.stortingetIssueId}`} className="text-indigo-600 hover:text-indigo-500 font-medium text-sm">
               Se relatert stortingssak →
             </Link>
           </div>

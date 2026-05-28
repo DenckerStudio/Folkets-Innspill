@@ -241,7 +241,7 @@ export default function PolitikerHubPage() {
             <p className="text-sm text-gray-500 mb-4">Saker med flest unike stemmer fra Hordaland.</p>
             <div className="space-y-3">
               {issues.slice(0, 3).map((issue, index) => (
-                <Link href={`/sak/${issue.id}`} key={issue.id} className="block p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors border border-gray-100">
+                <Link href={`/dashboard/sak/${issue.id}`} key={issue.id} className="block p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors border border-gray-100">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-sm font-medium text-indigo-600 line-clamp-2 pr-4">{issue.title}</span>
                     <span className="text-sm font-bold text-gray-400 whitespace-nowrap">#{index + 1}</span>

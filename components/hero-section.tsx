@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Info } from 'lucide-react';
 import { motion } from 'motion/react';
+import { routes } from '@/lib/routes';
 
 export default function HeroSection() {
   return (
@@ -54,10 +55,10 @@ export default function HeroSection() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="mt-10 max-w-md mx-auto sm:flex sm:justify-center gap-4"
         >
-          <Link href="/utforsk" className="w-full sm:w-auto flex items-center justify-center px-8 py-4 border border-transparent text-base font-medium text-white bg-gray-900 hover:bg-gray-800 transition-all duration-200 md:text-lg shadow-sm">
-            Utforsk saker
+          <Link href={routes.login} className="w-full sm:w-auto flex items-center justify-center px-8 py-4 border border-transparent text-base font-medium text-white bg-gray-900 hover:bg-gray-800 transition-all duration-200 md:text-lg shadow-sm">
+            Kom i gang
           </Link>
-          <Link href="/auth/login" className="mt-3 sm:mt-0 w-full sm:w-auto flex items-center justify-center px-8 py-4 border border-gray-300 text-base font-medium text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 md:text-lg shadow-sm">
+          <Link href={routes.login} className="mt-3 sm:mt-0 w-full sm:w-auto flex items-center justify-center px-8 py-4 border border-gray-300 text-base font-medium text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 md:text-lg shadow-sm">
             Logg inn
           </Link>
         </motion.div>

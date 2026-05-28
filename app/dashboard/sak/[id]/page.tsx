@@ -125,12 +125,12 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
     <div className="max-w-4xl mx-auto space-y-12 pb-12">
       <FadeIn delay={0.1}>
         <div className="flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
+          <Link href="/dashboard/utforsk" className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
             <ArrowLeft className="mr-2 w-4 h-4" />
             Tilbake til oversikt
           </Link>
           <div className="flex gap-3">
-            <Link href={`/forum?sak=${sak.id}`} className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            <Link href={`/dashboard/forum?sak=${sak.id}`} className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
               <MessageSquare className="mr-1.5 w-4 h-4" />
               Diskuter i forum
             </Link>
@@ -394,7 +394,7 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
                   return (
                     <Link
                       key={i}
-                      href={`/sak/${relSak.id}`}
+                      href={`/dashboard/sak/${relSak.id}`}
                       className="block p-3 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-colors"
                     >
                       <div className="text-sm font-medium text-indigo-600">{relSak.korttittel || relSak.tittel}</div>
