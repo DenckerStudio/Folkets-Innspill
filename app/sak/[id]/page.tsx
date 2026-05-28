@@ -101,7 +101,7 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
       </FadeIn>
 
       <FadeIn delay={0.3} direction="up">
-        <AiSummary title={sak.title} summary={sak.summary} />
+        <AiSummary sakId={sak.id} />
       </FadeIn>
 
       {/* Politician Response Form */}
