@@ -45,7 +45,9 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
     const categories = Array.isArray(payload.categories) ? payload.categories : [];
-    const cleaned = [...new Set(categories.map((c) => String(c).trim()).filter(Boolean))];
+    const cleaned = [
+      ...new Set(categories.map((c: unknown) => String(c).trim()).filter(Boolean)),
+    ];
 
     const { error: delError } = await supabase
       .from('notification_category_subscriptions')
