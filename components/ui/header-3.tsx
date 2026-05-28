@@ -21,6 +21,7 @@ import {
   type SiteNavLinkItem,
   utforskLinks,
 } from '@/lib/site-nav-links';
+import { routes } from '@/lib/routes';
 
 type LinkItem = SiteNavLinkItem;
 
@@ -36,7 +37,7 @@ export function Header() {
   const handleSignOut = async () => {
     const { getBrowserSupabase } = await import('@/lib/supabase');
     await getBrowserSupabase().auth.signOut();
-    router.push('/');
+    router.push(routes.home);
     router.refresh();
   };
 
@@ -72,7 +73,7 @@ export function Header() {
     >
       <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 md:gap-5">
-          <Link href="/" className="hover:opacity-90 rounded-md p-1 transition-opacity">
+          <Link href={routes.dashboard} className="hover:opacity-90 rounded-md p-1 transition-opacity">
             <FolketsStemmeLogo />
           </Link>
           <NavigationMenu className="hidden md:flex">
@@ -90,7 +91,7 @@ export function Header() {
                   <div className="p-2">
                     <p className="text-muted-foreground text-sm">
                       Vil du delta?{' '}
-                      <Link href="/horinger" className="text-foreground font-medium hover:underline">
+                      <Link href={routes.horinger} className="text-foreground font-medium hover:underline">
                         Se åpne høringer
                       </Link>
                     </p>
@@ -143,7 +144,7 @@ export function Header() {
           {isLoggedIn ? (
             <>
               <Link
-                href="/varsler"
+                href={routes.varsler}
                 className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
                 aria-label="Varsler"
               >
@@ -154,7 +155,7 @@ export function Header() {
                   </span>
                 ) : null}
               </Link>
-              <Button variant="outline" render={<Link href="/min-side" />}>
+              <Button variant="outline" render={<Link href={routes.minSide} />}>
                 {displayName ? `Hei, ${displayName.split(' ')[0]}` : 'Min side'}
               </Button>
               <Button onClick={handleSignOut}>
@@ -164,11 +165,11 @@ export function Header() {
             </>
           ) : (
             <>
-              <Button variant="outline" render={<Link href="/auth/login" />}>
+              <Button variant="outline" render={<Link href={routes.login} />}>
                 <LogIn className="size-4" />
                 Logg inn
               </Button>
-              <Button render={<Link href="/auth/login" />}>Kom i gang</Button>
+              <Button render={<Link href={routes.login} />}>Kom i gang</Button>
             </>
           )}
         </div>

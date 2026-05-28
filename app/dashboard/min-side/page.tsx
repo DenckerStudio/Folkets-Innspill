@@ -161,7 +161,7 @@ function MinSideContent() {
                 <div className="text-center py-8 text-gray-500">
                   <p className="text-lg font-medium">Ingen stemmer ennå</p>
                   <p className="text-sm mt-2">Utforsk saker og stem for å se historikken din her.</p>
-                  <Link href="/utforsk" className="mt-4 inline-block text-indigo-600 font-medium hover:text-indigo-500">
+                  <Link href="/dashboard/utforsk" className="mt-4 inline-block text-indigo-600 font-medium hover:text-indigo-500">
                     Utforsk saker →
                   </Link>
                 </div>
@@ -170,7 +170,7 @@ function MinSideContent() {
                   <ul role="list" className="divide-y divide-gray-200">
                     {voteHistory.map((item) => (
                       <li key={item.stortinget_issue_id}>
-                        <Link href={`/sak/${item.stortinget_issue_id}`} className="block hover:bg-gray-50">
+                        <Link href={`/dashboard/sak/${item.stortinget_issue_id}`} className="block hover:bg-gray-50">
                           <div className="px-4 py-4 sm:px-6">
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium text-indigo-600 truncate">
@@ -204,7 +204,7 @@ function MinSideContent() {
               {voteHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-500">Du må stemme på minst noen saker for å se din Valgomat.</p>
-                  <Link href="/utforsk" className="mt-4 inline-block text-indigo-600 font-medium hover:text-indigo-500">
+                  <Link href="/dashboard/utforsk" className="mt-4 inline-block text-indigo-600 font-medium hover:text-indigo-500">
                     Utforsk saker →
                   </Link>
                 </div>

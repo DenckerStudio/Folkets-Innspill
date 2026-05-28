@@ -140,7 +140,7 @@ export default async function ForumPostPage({ params }: { params: Promise<{ id: 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <FadeIn delay={0.1}>
-        <Link href="/forum" className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500 mb-6">
+        <Link href="/dashboard/forum" className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500 mb-6">
           <ArrowLeft className="mr-2 w-4 h-4" />
           Tilbake til forumet
         </Link>
@@ -180,7 +180,7 @@ export default async function ForumPostPage({ params }: { params: Promise<{ id: 
             {post.relatedIssueId && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-5">
                 <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase tracking-wide">Relatert stortingssak</h3>
-                <Link href={`/sak/${post.relatedIssueId}`} className="block hover:bg-white p-3 rounded-md transition-colors border border-transparent hover:border-gray-200 shadow-sm">
+                <Link href={`/dashboard/sak/${post.relatedIssueId}`} className="block hover:bg-white p-3 rounded-md transition-colors border border-transparent hover:border-gray-200 shadow-sm">
                    <div className="text-indigo-600 font-semibold mb-1">{post.relatedIssueTitle || `Sak ${post.relatedIssueId}`}</div>
                 </Link>
               </div>

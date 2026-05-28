@@ -25,7 +25,8 @@
 - **Supabase secrets required for full functionality**: Without `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`, the app starts but shows empty data for votes, forum, and hearings. The Stortinget API data (issues, representatives) still works.
 - **OAuth configured in Supabase Dashboard**: Google (and other providers) are enabled via Supabase Dashboard → Authentication → Providers. The OAuth callback URL is `/api/auth/callback`.
 - **Middleware refreshes auth tokens**: `middleware.ts` runs on every request to refresh Supabase auth cookies via `@supabase/ssr`.
-- **Build warning on `/horinger`**: The `/horinger` route fetches from its own API at build time, causing a non-fatal `DYNAMIC_SERVER_USAGE` error. This is expected.
+- **Routes**: Public landing at `/` (10 popular issues). App pages live under `/dashboard/*` (utforsk, min-side, høringer, forum, etc.). Legacy paths redirect to `/dashboard/...`. `/dashboard/sak/[id]` is public for landing links; other dashboard routes require login (middleware).
+- **Build warning on `/dashboard/horinger`**: The høringer route fetches from its own API at build time, causing a non-fatal `DYNAMIC_SERVER_USAGE` error. This is expected.
 - **No automated test suite**: Validation is done via lint, build, and manual testing.
 - **Voting schema**: SQL migrations live in `supabase/migrations/`. Run `supabase db push` (or paste SQL in the dashboard) before vote APIs work. Ballots are in `citizen_votes` (no `user_id`); per-user choices are encrypted in `user_vote_receipts` via `pgcrypto`.
 - **GEMINI_API_KEY is optional**: Without it and without `OLLAMA_URL`, AI summaries show a fallback message.

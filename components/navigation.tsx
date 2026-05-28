@@ -2,31 +2,34 @@
 
 import { usePathname } from 'next/navigation';
 import { Header } from '@/components/ui/header-3';
+import { LandingHeader } from '@/components/landing-header';
 import { MobileNav } from '@/components/mobile-nav';
-import { useAuth } from '@/hooks/use-auth';
-import { cn } from '@/lib/utils';
+import { isDashboardPath } from '@/lib/routes';
 
 type NavigationProps = {
   children: React.ReactNode;
 };
 
-/** Below `md`: bottom nav. From `md` up: top header on `/` or when logged in. */
 export function Navigation({ children }: NavigationProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
-  const isHome = pathname === '/';
-  const isLoggedIn = !!user;
-  const showTopHeader = isHome || isLoggedIn;
+  const isMarketing = pathname === '/' || pathname === '/om-oss';
+  const inDashboard = isDashboardPath(pathname);
 
   return (
     <>
-      {showTopHeader ? (
+      {isMarketing ? (
+        <LandingHeader />
+      ) : inDashboard ? (
         <div className="hidden md:block">
           <Header />
         </div>
       ) : null}
-      <MobileNav />
-      <div className={cn('pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0')}>
+      {inDashboard ? <MobileNav /> : null}
+      <div
+        className={
+          inDashboard ? 'pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0' : undefined
+        }
+      >
         {children}
       </div>
     </>

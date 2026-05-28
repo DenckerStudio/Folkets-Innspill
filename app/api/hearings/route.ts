@@ -42,7 +42,7 @@ export async function POST(request: Request) {
             type: 'mention',
             channel: 'mentions',
             title: 'Du ble nevnt i et innspill',
-            url: `/horinger/${hearing_id}`,
+            url: `/dashboard/horinger/${hearing_id}`,
             data: { hearingId: hearing_id, commentId: data, byUserId: user.id },
             origin,
           })

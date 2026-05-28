@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck, ArrowRight, Phone } from 'lucide-react';
 import FadeIn from '@/components/fade-in';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getBrowserSupabase } from '@/lib/supabase';
 
 export default function LoginClient() {
@@ -17,6 +17,8 @@ export default function LoginClient() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get('next') || '/dashboard/min-side';
   const supabase = getBrowserSupabase();
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -49,7 +51,7 @@ export default function LoginClient() {
           setIsLoading(false);
           return;
         }
-        router.push('/min-side');
+        router.push(nextPath);
         router.refresh();
       }
     } catch {
@@ -65,7 +67,7 @@ export default function LoginClient() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?next=/min-side`,
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextPath)}`,
       },
     });
     if (error) {
@@ -104,7 +106,7 @@ export default function LoginClient() {
     } catch {
       // ignore
     }
-    router.push('/min-side');
+    router.push(nextPath);
     router.refresh();
   };
 
@@ -181,7 +183,7 @@ export default function LoginClient() {
 
               <button
                 onClick={() => {
-                  router.push('/min-side');
+                  router.push(nextPath);
                   router.refresh();
                 }}
                 className="w-full text-center text-sm text-gray-500 hover:text-gray-700"

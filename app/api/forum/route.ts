@@ -43,7 +43,7 @@ export async function POST(request: Request) {
               channel: 'mentions',
               title: 'Du ble nevnt i en ny forumtråd',
               body: payload.title ? `Tråd: ${payload.title}` : null,
-              url: `/forum/${threadId}`,
+              url: `/dashboard/forum/${threadId}`,
               data: { threadId, byUserId: user.id },
               origin,
             })
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
             channel: isMention ? 'mentions' : 'forum',
             title: isMention ? 'Du ble nevnt i forumet' : 'Nytt svar i en tråd du følger',
             body: thread?.title ? `Tråd: ${thread.title}` : null,
-            url: `/forum/${threadId}`,
+            url: `/dashboard/forum/${threadId}`,
             data: { threadId, replyId, byUserId: user.id },
             origin,
           });
