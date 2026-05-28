@@ -119,8 +119,9 @@ export async function GET(
         hvem: 'Ukjent',
         kostnad: 'Ukjent',
         error: true,
+        retry_after_seconds: 10,
       },
-      { status: 200 }
+      { status: 503 }
     );
   }
 }

@@ -7,34 +7,71 @@ import { motion } from 'motion/react';
 export default function AiSummary({ sakId, title, summary }: { sakId: string; title: string; summary: string }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ hva: string; hvem: string; kostnad: string } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function fetchSummary() {
-      try {
-        const res = await fetch(`/api/sak/${sakId}/ai-summary`);
-        const json = await res.json();
-        if (!cancelled) {
-          setData({
-            hva: json.hva || 'Ingen informasjon tilgjengelig.',
-            hvem: json.hvem || 'Ukjent',
-            kostnad: json.kostnad || 'Ukjent',
-          });
+      const MAX_ATTEMPTS = 5;
+      let attempt = 0;
+
+      while (!cancelled && attempt < MAX_ATTEMPTS) {
+        attempt += 1;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 120_000);
+
+          const res = await fetch(`/api/sak/${sakId}/ai-summary`, { signal: controller.signal });
+          clearTimeout(timeout);
+
+          const json = await res.json().catch(() => ({}));
+
+          if (res.ok && !json?.error) {
+            if (!cancelled) {
+              setErrorMessage(null);
+              setData({
+                hva: json.hva || 'Ingen informasjon tilgjengelig.',
+                hvem: json.hvem || 'Ukjent',
+                kostnad: json.kostnad || 'Ukjent',
+              });
+              setLoading(false);
+            }
+            return;
+          }
+
+          const retryAfterSeconds =
+            typeof json?.retry_after_seconds === 'number' && json.retry_after_seconds > 0
+              ? json.retry_after_seconds
+              : 10;
+
+          if (!cancelled) {
+            setErrorMessage('Genererer AI-oppsummering …');
+            setLoading(true);
+          }
+
+          await new Promise((r) => setTimeout(r, retryAfterSeconds * 1000));
+          continue;
+        } catch (error) {
+          console.error('Failed to fetch summary', error);
+          if (!cancelled) {
+            setErrorMessage('Genererer AI-oppsummering …');
+            setLoading(true);
+          }
+          await new Promise((r) => setTimeout(r, 10_000));
         }
-      } catch (error) {
-        console.error('Failed to fetch summary', error);
-        if (!cancelled) {
-          setData({
-            hva: `Saken handler om: ${title}`,
-            hvem: 'Se saksdokumentene for detaljer.',
-            kostnad: summary.includes('milliard') || summary.includes('kr')
-              ? 'Se saksdokumentene for økonomiske tall.'
-              : 'Ikke spesifisert i kortversjonen.',
-          });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      }
+
+      if (!cancelled) {
+        setLoading(false);
+        setErrorMessage('Kunne ikke generere AI-oppsummering akkurat nå.');
+        setData({
+          hva: `Saken handler om: ${title}`,
+          hvem: 'Se saksdokumentene for detaljer.',
+          kostnad: summary.includes('milliard') || summary.includes('kr')
+            ? 'Se saksdokumentene for økonomiske tall.'
+            : 'Ikke spesifisert i kortversjonen.',
+        });
       }
     }
 
@@ -48,6 +85,7 @@ export default function AiSummary({ sakId, title, summary }: { sakId: string; ti
     return (
       <div className="bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-100 p-8 animate-pulse">
         <div className="h-6 bg-indigo-100 rounded w-1/3 mb-6"></div>
+        {errorMessage && <div className="text-sm text-indigo-700 mb-3">{errorMessage}</div>}
         <div className="space-y-4">
           <div className="h-4 bg-indigo-50 rounded w-full"></div>
           <div className="h-4 bg-indigo-50 rounded w-5/6"></div>
