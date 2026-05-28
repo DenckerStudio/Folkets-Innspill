@@ -1,25 +1,32 @@
 import type { SummaryField, SummaryCards } from './types';
 
 const FIELD_GUIDANCE: Record<SummaryField, string> = {
-  hva: `Forklar hva saken handler om i klart, nøytralt språk.
-- Ta utgangspunkt i tittel, innstilling og vedtakstekst.
-- Nevn hovedmålet (forslag, endring, vedtak) uten partipolitisk vinkling.
-- 2–3 korte setninger. Ingen overskrifter eller punktlister.`,
-  hvem: `Beskriv hvem som påvirkes direkte av saken.
-- Nevn konkrete grupper (borgere, næringer, kommuner, etater) som fremgår av kildematerialet.
-- Skill mellom direkte og indirekte berørte hvis det er relevant.
-- 2–3 korte setninger. Ikke spekuler om grupper som ikke nevnes i saken.`,
-  kostnad: `Beskriv økonomiske konsekvenser eller kostnader knyttet til saken.
-- Bruk tall og beløp kun hvis de står eksplisitt i kildematerialet; ellers skriv at konkrete beløp ikke er oppgitt.
-- Nevn om kostnaden gjelder stat, kommune, næringsliv eller innbyggere når det fremgår.
-- 2–3 korte setninger. Ikke finn på kroner eller prosenter.`,
+  hva: `Felt "hva" – hva saken handler om:
+- Identifiser sakstype (f.eks. lovendring, budsjett, høring, stortingsmelding) hvis det fremgår av kilden.
+- Forklar hovedforslaget, innstillingen eller vedtaket i 2–3 korte setninger.
+- Ta utgangspunkt i tittel, innstillingstekst og vedtakstekst.
+- Unngå vage åpninger som bare sier «saken handler om …» uten konkret innhold.
+- Ikke partipolitisk vinkling. Maks 3 setninger, maks ca. 350 tegn.`,
+  hvem: `Felt "hvem" – hvem som påvirkes:
+- Nevn minst én konkret gruppe som fremgår av kilden (borgere, næringer, kommuner, etater, bransjer).
+- Skill mellom direkte og indirekte berørte når kilden gjør det.
+- Hvis kilden ikke nevner konkrete grupper: skriv eksplisitt at ingen spesifikke grupper er nevnt.
+- Ikke finn på grupper som ikke står i saken. Maks 3 setninger, maks ca. 350 tegn.`,
+  kostnad: `Felt "kostnad" – økonomiske konsekvenser:
+- Bruk ett av disse mønstrene der det passer:
+  • «Beløp: …» når tall står eksplisitt i kilden.
+  • «Økonomisk effekt omtalt uten konkrete beløp» når kostnad nevnes uten tall.
+  • «Ingen kostnader omtalt i kilden» når økonomi ikke er dekket.
+- Nevn hvem som bærer kostnaden (stat, kommune, næring, innbyggere) når det fremgår.
+- Ikke estimer eller finn på kroner eller prosenter. Maks 3 setninger, maks ca. 350 tegn.`,
 };
 
 const LANGUAGE_RULES = `SPRÅK (obligatorisk):
 - Skriv utelukkende på norsk (bokmål).
 - Bruk korte, tydelige setninger og vanlige ord. Forklar faguttrykk første gang.
 - Vær saklig og nøytral. Ikke ta stilling til om forslaget er bra eller dårlig.
-- Bygg kun på kilden. Ikke finn på tall, navn eller konsekvenser som ikke står der.`;
+- Bygg kun på kilden. Ikke finn på tall, navn eller konsekvenser som ikke står der.
+- Pek på hvilken del av kilden informasjonen bygger på (innstilling, vedtak, kortvedtak) uten å sitere verbatim.`;
 
 export function buildInitialGenerationPrompt(sakContextText: string): string {
   return `Du er en nøytral, faktabasert assistent for «Folkets Stemme» som forenkler stortingssaker for vanlige borgere.
@@ -31,7 +38,7 @@ KILDE (stortingssak – bruk kun dette som grunnlag):
 ${sakContextText}
 ---
 
-Oppgave: Lag tre korte forklaringer. Hver skal være selvstendig lesbar og forankret i kildematerialet.
+Oppgave: Lag tre korte, uavhengige forklaringer. Hvert felt skal ha eget innhold – ikke gjenta samme setning på tvers av hva, hvem og kostnad.
 
 ${FIELD_GUIDANCE.hva}
 
@@ -52,10 +59,15 @@ export function buildFieldRegenerationPrompt(
 ): string {
   const missing =
     missingAspects.length > 0
-      ? `\nMangler i forrige forsøk: ${missingAspects.join('; ')}`
+      ? `\nAlt som har manglet i tidligere forsøk (må adresseres): ${missingAspects.join('; ')}`
       : '';
 
-  return `Du er en nøytral, faktabasert assistent for "Folkets Stemme".
+  const otherFields = (['hva', 'hvem', 'kostnad'] as SummaryField[])
+    .filter((f) => f !== field)
+    .map((f) => `- ${f}: ${current[f]}`)
+    .join('\n');
+
+  return `Du er en nøytral, faktabasert assistent for «Folkets Stemme».
 
 KILDE (stortingssak):
 ---
@@ -63,9 +75,7 @@ ${sakContextText}
 ---
 
 Godkjente felt (ikke endre disse):
-- hva: ${current.hva}
-- hvem: ${current.hvem}
-- kostnad: ${current.kostnad}
+${otherFields}
 
 Feltet "${field}" ble ikke godkjent.
 Tilbakemelding fra kvalitetskontroll: ${feedback}${missing}
@@ -81,11 +91,22 @@ export function buildValidationPrompt(
   sakContextText: string,
   value: string
 ): string {
-  const criteria: Record<SummaryField, string> = {
-    hva: 'dekker hovedinnholdet i saken, er faktabasert, og unngår vage formuleringer',
-    hvem: 'nevner relevante berørte parter fra kilden, uten å finne på nye grupper',
-    kostnad:
-      'beskriver økonomiske konsekvenser ærlig; tall kun hvis de finnes i kilden, ellers tydelig at beløp mangler',
+  const rubrics: Record<SummaryField, string> = {
+    hva: `Sjekkliste for "hva":
+- Nevner sakstype eller hovedinnhold fra kilden
+- Er faktabasert og konkret (ikke vag)
+- Dekker hovedforslag/innstilling/vedtak der det finnes i kilden
+- Maks 3 setninger, norsk bokmål, ingen hallusinerte fakta`,
+    hvem: `Sjekkliste for "hvem":
+- Nevner relevante berørte parter fra kilden ELLER sier tydelig at ingen spesifikke grupper er nevnt
+- Finner ikke opp nye grupper
+- Skill direkte/indirekte berørte hvis relevant
+- Maks 3 setninger, norsk bokmål`,
+    kostnad: `Sjekkliste for "kostnad":
+- Følger ett av mønstrene: Beløp / effekt uten tall / ingen kostnader omtalt
+- Tall kun hvis de står i kilden
+- Beskriver hvem som bærer kostnaden når kilden sier det
+- Maks 3 setninger, norsk bokmål, ingen estimater`,
   };
 
   return `Du er en streng kvalitetskontrollør for AI-sammendrag av stortingssaker.
@@ -98,7 +119,9 @@ ${sakContextText}
 Felt som skal vurderes: "${field}"
 Tekst: "${value}"
 
-Godkjenn KUN hvis teksten ${criteria[field]}, er på norsk, maks 3 setninger, og ikke inneholder hallusinerte fakta.
+${rubrics[field]}
+
+Godkjenn KUN hvis teksten oppfyller sjekklisten og dekker det viktigste fra kilden for dette feltet.
 
 Svar KUN med gyldig JSON:
 {

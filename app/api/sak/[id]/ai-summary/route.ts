@@ -3,9 +3,16 @@ import {
   getOrCreateApprovedAiSummary,
   regenerateAiSummary,
 } from '@/lib/ai-summary/service';
+import { SUMMARY_FIELDS } from '@/lib/ai-summary/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
+
+function emptyFieldStatus() {
+  return Object.fromEntries(
+    SUMMARY_FIELDS.map((f) => [f, { approved: false }])
+  );
+}
 
 export async function GET(
   _request: Request,
@@ -28,11 +35,10 @@ export async function GET(
     return NextResponse.json(
       {
         error: true,
-        hva: 'Kunne ikke generere sammendrag for øyeblikket.',
-        hvem: 'Ukjent',
-        kostnad: 'Ukjent',
         cached: false,
         allApproved: false,
+        pendingFields: [...SUMMARY_FIELDS],
+        fields: emptyFieldStatus(),
         retry_after_seconds: 10,
       },
       { status: 503 }
@@ -67,6 +73,9 @@ export async function POST(
     return NextResponse.json(
       {
         error: true,
+        allApproved: false,
+        pendingFields: [...SUMMARY_FIELDS],
+        fields: emptyFieldStatus(),
         retry_after_seconds: 10,
       },
       { status: 503 }
