@@ -402,7 +402,7 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
       </FadeIn>
 
       <FadeIn delay={0.3} direction="up">
-        <AiSummary title={sak.title} summary={detailedContent?.tittel || sak.summary} />
+        <AiSummary sakId={sak.id} title={sak.title} summary={detailedContent?.tittel || sak.summary} />
       </FadeIn>
 
       <FadeIn delay={0.4} direction="up">

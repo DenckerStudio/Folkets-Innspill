@@ -18,7 +18,8 @@ export async function GET() {
       console.error('Vote history error:', error);
       return NextResponse.json([]);
     }
-    return NextResponse.json(data || []);
+    const history = Array.isArray(data) ? data : [];
+    return NextResponse.json(history);
   } catch (error) {
     console.error('Vote history error:', error);
     return NextResponse.json([]);
