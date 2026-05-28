@@ -4,8 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
+import { cn } from '@/lib/utils';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -26,7 +26,12 @@ import {
 
 type LinkItem = SiteNavLinkItem;
 
-export function Header() {
+type HeaderProps = {
+  /** Show hamburger + slide-out menu on viewports below `lg`. */
+  enableMobileMenu?: boolean;
+};
+
+export function Header({ enableMobileMenu = false }: HeaderProps) {
   const [open, setOpen] = React.useState(false);
   const scrolled = useScroll(10);
   const { user } = useAuth();
@@ -36,17 +41,6 @@ export function Header() {
   const displayName =
     user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
-  React.useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [open]);
-
   const handleSignOut = async () => {
     const { getBrowserSupabase } = await import('@/lib/supabase');
     await getBrowserSupabase().auth.signOut();
@@ -54,6 +48,17 @@ export function Header() {
     router.push('/');
     router.refresh();
   };
+
+  React.useEffect(() => {
+    if (!enableMobileMenu || !open) {
+      document.body.style.overflow = '';
+      return;
+    }
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [enableMobileMenu, open]);
 
   React.useEffect(() => {
     let timer: number | undefined;
@@ -187,67 +192,71 @@ export function Header() {
             </>
           )}
         </div>
-        <Button
-          size="icon"
-          variant="outline"
-          onClick={() => setOpen(!open)}
-          className="lg:hidden"
-          aria-expanded={open}
-          aria-controls="mobile-menu"
-          aria-label="Åpne meny"
-        >
-          <MenuToggleIcon open={open} className="size-5" duration={300} />
-        </Button>
+        {enableMobileMenu ? (
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => setOpen(!open)}
+            className="lg:hidden"
+            aria-expanded={open}
+            aria-controls="mobile-menu"
+            aria-label="Åpne meny"
+          >
+            <MenuToggleIcon open={open} className="size-5" duration={300} />
+          </Button>
+        ) : null}
       </nav>
-      <MobileMenu open={open} className="flex flex-col justify-between gap-4 overflow-y-auto">
-        <div className="flex w-full flex-col gap-y-4">
-          <MobileNavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
-          <MobileNavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
-          <MobileNavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
-          <MobileNavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
-        </div>
-        <div className="flex flex-col gap-2 pb-4">
-          {isLoggedIn ? (
-            <>
-              <Button
-                variant="outline"
-                className="w-full bg-transparent justify-between"
-                render={<Link href="/varsler" onClick={() => setOpen(false)} />}
-              >
-                Varsler
-                {unreadCount > 0 ? (
-                  <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                ) : null}
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full bg-transparent"
-                render={<Link href="/min-side" onClick={() => setOpen(false)} />}
-              >
-                Min side
-              </Button>
-              <Button className="w-full" onClick={handleSignOut}>
-                Logg ut
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                className="w-full bg-transparent"
-                render={<Link href="/auth/login" onClick={() => setOpen(false)} />}
-              >
-                Logg inn
-              </Button>
-              <Button className="w-full" render={<Link href="/auth/login" onClick={() => setOpen(false)} />}>
-                Kom i gang
-              </Button>
-            </>
-          )}
-        </div>
-      </MobileMenu>
+      {enableMobileMenu ? (
+        <MobileMenu open={open} className="flex flex-col justify-between gap-4 overflow-y-auto">
+          <div className="flex w-full flex-col gap-y-4">
+            <MobileNavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
+            <MobileNavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
+            <MobileNavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
+            <MobileNavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
+          </div>
+          <div className="flex flex-col gap-2 pb-4">
+            {isLoggedIn ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent justify-between"
+                  render={<Link href="/varsler" onClick={() => setOpen(false)} />}
+                >
+                  Varsler
+                  {unreadCount > 0 ? (
+                    <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  ) : null}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent"
+                  render={<Link href="/min-side" onClick={() => setOpen(false)} />}
+                >
+                  Min side
+                </Button>
+                <Button className="w-full" onClick={handleSignOut}>
+                  Logg ut
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent"
+                  render={<Link href="/auth/login" onClick={() => setOpen(false)} />}
+                >
+                  Logg inn
+                </Button>
+                <Button className="w-full" render={<Link href="/auth/login" onClick={() => setOpen(false)} />}>
+                  Kom i gang
+                </Button>
+              </>
+            )}
+          </div>
+        </MobileMenu>
+      ) : null}
     </header>
   );
 }
