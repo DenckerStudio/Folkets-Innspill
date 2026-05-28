@@ -17,7 +17,6 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
-  const supabase = getBrowserSupabase();
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +24,7 @@ export default function LoginPage() {
     setError('');
 
     try {
+      const supabase = getBrowserSupabase();
       if (isRegister) {
         const { error: signUpError } = await supabase.auth.signUp({
           email,
@@ -62,6 +62,7 @@ export default function LoginPage() {
   const handleSocialLogin = async (provider: 'google' | 'github') => {
     setIsLoading(true);
     setError('');
+    const supabase = getBrowserSupabase();
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -78,6 +79,7 @@ export default function LoginPage() {
     if (!phone) return;
     setIsLoading(true);
     setError('');
+    const supabase = getBrowserSupabase();
     const { error } = await supabase.auth.signInWithOtp({ phone });
     if (error) {
       setError('Kunne ikke sende SMS. Sjekk nummeret og prøv igjen.');
@@ -89,6 +91,7 @@ export default function LoginPage() {
     if (!otp) return;
     setIsLoading(true);
     setError('');
+    const supabase = getBrowserSupabase();
     const { error } = await supabase.auth.verifyOtp({
       phone,
       token: otp,
