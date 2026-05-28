@@ -1,8 +1,34 @@
+"use client"
+
+import * as React from "react"
 import { NavigationMenu as NavigationMenuPrimitive } from "@base-ui/react/navigation-menu"
 import { cva } from "class-variance-authority"
 
+import { Button } from "@/components/ui/button"
+import { MenuToggleIcon } from "@/components/ui/menu-toggle-icon"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon } from "lucide-react"
+
+const MOBILE_PANEL_ID = "navigation-menu-mobile-panel"
+
+type NavigationMenuMobileContextValue = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  panelId: string
+}
+
+const NavigationMenuMobileContext =
+  React.createContext<NavigationMenuMobileContextValue | null>(null)
+
+function useNavigationMenuMobile() {
+  const context = React.useContext(NavigationMenuMobileContext)
+  if (!context) {
+    throw new Error(
+      "NavigationMenuHamburger and NavigationMenuMobilePanel must be used within NavigationMenuMobile"
+    )
+  }
+  return context
+}
 
 function NavigationMenu({
   align = "start",
@@ -155,13 +181,132 @@ function NavigationMenuIndicator({
   )
 }
 
+type NavigationMenuMobileProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  panelId?: string
+  children: React.ReactNode
+}
+
+function NavigationMenuMobile({
+  open,
+  onOpenChange,
+  panelId = MOBILE_PANEL_ID,
+  children,
+}: NavigationMenuMobileProps) {
+  const value = React.useMemo(
+    () => ({ open, onOpenChange, panelId }),
+    [open, onOpenChange, panelId]
+  )
+
+  React.useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [open, onOpenChange])
+
+  return (
+    <NavigationMenuMobileContext.Provider value={value}>
+      {children}
+    </NavigationMenuMobileContext.Provider>
+  )
+}
+
+type NavigationMenuHamburgerProps = {
+  className?: string
+  "aria-label"?: string
+}
+
+function NavigationMenuHamburger({
+  className,
+  "aria-label": ariaLabel = "Åpne meny",
+}: NavigationMenuHamburgerProps) {
+  const { open, onOpenChange, panelId } = useNavigationMenuMobile()
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      className={className}
+      aria-expanded={open}
+      aria-controls={panelId}
+      aria-label={open ? "Lukk meny" : ariaLabel}
+      onClick={() => onOpenChange(!open)}
+    >
+      <MenuToggleIcon open={open} />
+    </Button>
+  )
+}
+
+type NavigationMenuMobilePanelProps = {
+  className?: string
+  onNavigate?: () => void
+  children: React.ReactNode
+}
+
+function NavigationMenuMobilePanel({
+  className,
+  onNavigate,
+  children,
+}: NavigationMenuMobilePanelProps) {
+  const { open, onOpenChange, panelId } = useNavigationMenuMobile()
+
+  if (!open) return null
+
+  const handleNavigate = () => {
+    onNavigate?.()
+    onOpenChange(false)
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-hidden
+        tabIndex={-1}
+        className="fixed inset-0 z-40 bg-black/40 animate-in fade-in-0 duration-200 md:hidden"
+        onClick={() => onOpenChange(false)}
+      />
+      <div
+        id={panelId}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigasjonsmeny"
+        className={cn(
+          "fixed inset-x-0 top-16 bottom-0 z-50 overflow-y-auto border-t bg-background p-4 shadow-lg animate-in fade-in-0 slide-in-from-top-2 duration-200 md:hidden",
+          className
+        )}
+        onClick={handleNavigate}
+      >
+        {children}
+      </div>
+    </>
+  )
+}
+
 export {
   NavigationMenu,
   NavigationMenuContent,
+  NavigationMenuHamburger,
   NavigationMenuIndicator,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
+  NavigationMenuMobile,
+  NavigationMenuMobilePanel,
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
   NavigationMenuPositioner,
