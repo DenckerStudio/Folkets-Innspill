@@ -22,6 +22,61 @@ CREATE TABLE IF NOT EXISTS public.citizen_votes (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- If legacy tables exist with incompatible column types, recreate them.
+-- This avoids runtime errors like 42804 (datatype mismatch) during cast_vote().
+DO $$
+DECLARE
+  issue_col_type text;
+  choice_col_type text;
+  receipts_issue_col_type text;
+  receipts_user_col_type text;
+BEGIN
+  SELECT data_type INTO issue_col_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'citizen_votes' AND column_name = 'stortinget_issue_id';
+
+  SELECT data_type INTO choice_col_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'citizen_votes' AND column_name = 'choice';
+
+  IF issue_col_type IS DISTINCT FROM 'text' OR choice_col_type IS DISTINCT FROM 'text' THEN
+    RAISE NOTICE 'Recreating public.citizen_votes due to legacy column types (issue=%, choice=%)', issue_col_type, choice_col_type;
+    DROP TABLE IF EXISTS public.citizen_votes CASCADE;
+
+    CREATE TABLE public.citizen_votes (
+      id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
+      stortinget_issue_id text NOT NULL REFERENCES public.stortinget_issues (id) ON DELETE CASCADE,
+      choice text NOT NULL CHECK (choice IN ('for', 'against', 'abstain')),
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_citizen_votes_issue ON public.citizen_votes (stortinget_issue_id);
+  END IF;
+
+  SELECT data_type INTO receipts_issue_col_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'user_vote_receipts' AND column_name = 'stortinget_issue_id';
+
+  SELECT data_type INTO receipts_user_col_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'user_vote_receipts' AND column_name = 'user_id';
+
+  IF receipts_issue_col_type IS DISTINCT FROM 'text' OR receipts_user_col_type IS DISTINCT FROM 'uuid' THEN
+    RAISE NOTICE 'Recreating public.user_vote_receipts due to legacy column types (issue=%, user=%)', receipts_issue_col_type, receipts_user_col_type;
+    DROP TABLE IF EXISTS public.user_vote_receipts CASCADE;
+
+    CREATE TABLE public.user_vote_receipts (
+      user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+      stortinget_issue_id text NOT NULL REFERENCES public.stortinget_issues (id) ON DELETE CASCADE,
+      choice_encrypted bytea NOT NULL,
+      voted_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, stortinget_issue_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_vote_receipts_user ON public.user_vote_receipts (user_id);
+  END IF;
+END $$;
+
 -- 1. Legacy citizen_votes may still have user_id (breaks anonymous INSERT)
 ALTER TABLE public.citizen_votes DROP COLUMN IF EXISTS user_id;
 
