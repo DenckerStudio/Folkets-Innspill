@@ -91,12 +91,12 @@ export function Header() {
           <Link href="/" className="hover:opacity-90 rounded-md p-1 transition-opacity">
             <FolketsStemmeLogo />
           </Link>
-          <NavigationMenu className="hidden md:flex">
+          <NavigationMenu className="hidden lg:flex">
             <NavigationMenuList>
               <NavigationMenuItem>
                 <NavigationMenuTrigger className="bg-transparent">Utforsk</NavigationMenuTrigger>
                 <NavigationMenuContent className="bg-background p-1 pr-1.5">
-                  <ul className="bg-popover grid w-lg grid-cols-2 gap-2 rounded-md border p-2 shadow">
+                  <ul className="bg-popover grid w-96 grid-cols-2 gap-2 rounded-md border p-2 shadow">
                     {utforskLinks.map((item) => (
                       <li key={item.href}>
                         <ListItem {...item} onNavigate={() => setOpen(false)} />
@@ -119,7 +119,7 @@ export function Header() {
               <NavigationMenuItem>
                 <NavigationMenuTrigger className="bg-transparent">Delta</NavigationMenuTrigger>
                 <NavigationMenuContent className="bg-background p-1 pr-1.5 pb-1.5">
-                  <div className="grid w-lg grid-cols-2 gap-2">
+                  <div className="grid w-96 grid-cols-2 gap-2">
                     <ul className="bg-popover space-y-2 rounded-md border p-2 shadow">
                       {deltaLinks.map((item) => (
                         <li key={item.href}>
@@ -159,7 +159,7 @@ export function Header() {
             </NavigationMenuList>
           </NavigationMenu>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           {isLoggedIn ? (
             <>
               <Link
@@ -196,7 +196,7 @@ export function Header() {
           size="icon"
           variant="outline"
           onClick={() => setOpen(!open)}
-          className="md:hidden"
+          className="lg:hidden"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label="Åpne meny"
@@ -261,7 +261,7 @@ function MobileMenu({ open, children, className, ...props }: MobileMenuProps) {
       id="mobile-menu"
       className={cn(
         'bg-background/95 supports-[backdrop-filter]:bg-background/50 backdrop-blur-lg',
-        'fixed top-16 right-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden border-y md:hidden',
+        'fixed top-16 right-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden border-y lg:hidden',
       )}
     >
       <div
