@@ -75,7 +75,7 @@ export function Header() {
                   <ul className="bg-popover grid w-lg grid-cols-2 gap-2 rounded-md border p-2 shadow">
                     {utforskLinks.map((item) => (
                       <li key={item.href}>
-                        <ListItem {...item} onNavigate={() => setOpen(false)} />
+                        <DesktopListItem {...item} onNavigate={() => setOpen(false)} />
                       </li>
                     ))}
                   </ul>
@@ -99,7 +99,7 @@ export function Header() {
                     <ul className="bg-popover space-y-2 rounded-md border p-2 shadow">
                       {deltaLinks.map((item) => (
                         <li key={item.href}>
-                          <ListItem {...item} onNavigate={() => setOpen(false)} />
+                          <DesktopListItem {...item} onNavigate={() => setOpen(false)} />
                         </li>
                       ))}
                     </ul>
@@ -126,7 +126,7 @@ export function Header() {
                   <ul className="bg-popover w-72 space-y-2 rounded-md border p-2 shadow">
                     {omLinks.map((item) => (
                       <li key={item.href}>
-                        <ListItem {...item} onNavigate={() => setOpen(false)} />
+                        <DesktopListItem {...item} onNavigate={() => setOpen(false)} />
                       </li>
                     ))}
                   </ul>
@@ -170,10 +170,10 @@ export function Header() {
       </nav>
       <MobileMenu open={open} className="flex flex-col justify-between gap-4 overflow-y-auto">
         <div className="flex w-full flex-col gap-y-4">
-          <NavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
-          <NavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
-          <NavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
-          <NavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
         </div>
         <div className="flex flex-col gap-2 pb-4">
           {isLoggedIn ? (
@@ -232,7 +232,7 @@ function MobileMenu({ open, children, className, ...props }: MobileMenuProps) {
   );
 }
 
-function NavSection({
+function MobileNavSection({
   title,
   links,
   onNavigate,
@@ -247,7 +247,7 @@ function NavSection({
       <ul className="space-y-1">
         {links.map((link) => (
           <li key={link.href}>
-            <ListItem {...link} onNavigate={onNavigate} />
+            <MobileListItem {...link} onNavigate={onNavigate} />
           </li>
         ))}
       </ul>
@@ -255,7 +255,7 @@ function NavSection({
   );
 }
 
-function ListItem({
+function DesktopListItem({
   title,
   description,
   icon: Icon,
@@ -285,6 +285,36 @@ function ListItem({
         ) : null}
       </div>
     </NavigationMenuLink>
+  );
+}
+
+function MobileListItem({
+  title,
+  description,
+  icon: Icon,
+  href,
+  onNavigate,
+}: LinkItem & { onNavigate?: () => void }) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        'w-full flex flex-row gap-x-2 rounded-sm p-2',
+        'hover:bg-accent hover:text-accent-foreground',
+        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+      )}
+    >
+      <div className="bg-background/40 flex aspect-square size-12 items-center justify-center rounded-md border shadow-sm">
+        <Icon className="text-foreground size-5" />
+      </div>
+      <div className="flex flex-col items-start justify-center">
+        <span className="font-medium">{title}</span>
+        {description ? (
+          <span className="text-muted-foreground text-xs">{description}</span>
+        ) : null}
+      </div>
+    </Link>
   );
 }
 
