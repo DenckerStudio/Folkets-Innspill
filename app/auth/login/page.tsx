@@ -99,6 +99,11 @@ export default function LoginPage() {
       setIsLoading(false);
       return;
     }
+    try {
+      await fetch('/api/auth/welcome-email', { method: 'POST' });
+    } catch {
+      // ignore
+    }
     router.push('/min-side');
     router.refresh();
   };
