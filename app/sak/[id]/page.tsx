@@ -8,6 +8,9 @@ import ShareButton from './share-button';
 import FadeIn from '@/components/fade-in';
 import ExpandableText from './expandable-text';
 import VotingSection from './voting-section';
+import Image from 'next/image';
+import { getPersonbildeUrl } from '@/lib/stortinget-utils';
+import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,8 +85,13 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
 
   let detailedContent: any = null;
   try {
-    const detailRes = await fetch(`https://data.stortinget.no/eksport/sak?sakid=${sak.id}&format=json`, {
-      next: { revalidate: 3600 }
+    const h = await headers();
+    const host = h.get('x-forwarded-host') || h.get('host');
+    const proto = h.get('x-forwarded-proto') || 'http';
+    const baseUrl = host ? `${proto}://${host}` : '';
+
+    const detailRes = await fetch(`${baseUrl}/api/sak/${sak.id}`, {
+      next: { revalidate: 3600 },
     });
     if (detailRes.ok) {
       detailedContent = await detailRes.json();
@@ -196,8 +204,20 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
               <div className="flex flex-wrap gap-3">
                 {forslagstillere.map((f: any, i: number) => (
                   <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs flex-shrink-0">
-                      {f.fornavn?.[0]}{f.etternavn?.[0]}
+                    <div className="relative w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                      {f.id ? (
+                        <Image
+                          src={getPersonbildeUrl(String(f.id), 'lite', true)}
+                          alt={`${f.fornavn || ''} ${f.etternavn || ''}`.trim() || 'Forslagstiller'}
+                          fill
+                          className="object-cover"
+                          sizes="32px"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                          {f.fornavn?.[0]}{f.etternavn?.[0]}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="text-sm font-medium text-gray-900">{f.fornavn} {f.etternavn}</div>
@@ -221,8 +241,20 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
               <div className="flex flex-wrap gap-3">
                 {saksordfoerere.map((s: any, i: number) => (
                   <div key={i} className="flex items-center gap-2 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
-                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0">
-                      {s.fornavn?.[0]}{s.etternavn?.[0]}
+                    <div className="relative w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                      {s.id ? (
+                        <Image
+                          src={getPersonbildeUrl(String(s.id), 'lite', true)}
+                          alt={`${s.fornavn || ''} ${s.etternavn || ''}`.trim() || 'Saksordfører'}
+                          fill
+                          className="object-cover"
+                          sizes="32px"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs">
+                          {s.fornavn?.[0]}{s.etternavn?.[0]}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="text-sm font-medium text-gray-900">{s.fornavn} {s.etternavn}</div>
@@ -402,7 +434,7 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
       </FadeIn>
 
       <FadeIn delay={0.3} direction="up">
-        <AiSummary title={sak.title} summary={detailedContent?.tittel || sak.summary} />
+        <AiSummary sakId={sak.id} title={sak.title} summary={detailedContent?.tittel || sak.summary} />
       </FadeIn>
 
       <FadeIn delay={0.4} direction="up">

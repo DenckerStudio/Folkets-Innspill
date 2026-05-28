@@ -1,0 +1,133 @@
+import nodemailer from 'nodemailer';
+
+type Frequency = 'realtime' | 'daily' | 'weekly';
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return value;
+}
+
+function getSmtpConfig() {
+  const host = requireEnv('SMTP_HOST');
+  const port = Number(requireEnv('SMTP_PORT'));
+  const user = requireEnv('SMTP_USER');
+  const pass = requireEnv('SMTP_PASS');
+  const from = requireEnv('SMTP_FROM');
+
+  if (!Number.isFinite(port)) {
+    throw new Error('SMTP_PORT must be a number');
+  }
+
+  return { host, port, user, pass, from };
+}
+
+let cachedTransporter: nodemailer.Transporter | null = null;
+
+function getTransporter() {
+  if (cachedTransporter) return cachedTransporter;
+  const { host, port, user, pass } = getSmtpConfig();
+
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  return cachedTransporter;
+}
+
+export type WelcomeEmailInput = {
+  to: string;
+  name?: string | null;
+};
+
+export async function sendWelcomeEmail(input: WelcomeEmailInput) {
+  const transporter = getTransporter();
+  const { from } = getSmtpConfig();
+
+  const subject = 'Velkommen til Folkets Stemme';
+  const greeting = input.name?.trim() ? `Hei ${input.name.trim()}!` : 'Hei!';
+  const html = `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5;">
+      <h2>${greeting}</h2>
+      <p>Takk for at du registrerte deg. Du kan nå følge saker, delta i diskusjoner og få varsler om det du bryr deg om.</p>
+      <p>Hilsen<br/>Folkets Stemme</p>
+    </div>
+  `.trim();
+
+  await transporter.sendMail({ from, to: input.to, subject, html });
+}
+
+export type RealtimeNotificationEmailInput = {
+  to: string;
+  subject: string;
+  title: string;
+  body?: string | null;
+  url?: string | null;
+};
+
+export async function sendRealtimeNotificationEmail(input: RealtimeNotificationEmailInput) {
+  const transporter = getTransporter();
+  const { from } = getSmtpConfig();
+
+  const link = input.url
+    ? `<p><a href="${input.url}" target="_blank" rel="noreferrer">Åpne i Folkets Stemme</a></p>`
+    : '';
+
+  const html = `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5;">
+      <h3 style="margin:0 0 12px 0;">${input.title}</h3>
+      ${input.body ? `<p style="margin:0 0 12px 0;">${escapeHtml(input.body)}</p>` : ''}
+      ${link}
+    </div>
+  `.trim();
+
+  await transporter.sendMail({ from, to: input.to, subject: input.subject, html });
+}
+
+export type DigestEmailInput = {
+  to: string;
+  frequency: Frequency;
+  items: Array<{ title: string; url?: string | null; createdAt: string }>;
+};
+
+export async function sendDigestEmail(input: DigestEmailInput) {
+  const transporter = getTransporter();
+  const { from } = getSmtpConfig();
+
+  const subject =
+    input.frequency === 'daily'
+      ? 'Dine varsler (daglig oppsummering)'
+      : 'Dine varsler (ukentlig oppsummering)';
+
+  const list = input.items
+    .map((item) => {
+      const safeTitle = escapeHtml(item.title);
+      const link = item.url ? ` <a href="${item.url}" target="_blank" rel="noreferrer">Åpne</a>` : '';
+      return `<li>${safeTitle}${link}</li>`;
+    })
+    .join('');
+
+  const html = `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5;">
+      <h3 style="margin:0 0 12px 0;">Oppsummering</h3>
+      <ul style="padding-left: 18px; margin: 0;">${list || '<li>Ingen nye varsler.</li>'}</ul>
+    </div>
+  `.trim();
+
+  await transporter.sendMail({ from, to: input.to, subject, html });
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+

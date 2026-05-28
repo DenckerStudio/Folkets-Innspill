@@ -1,4 +1,5 @@
 import { getRepresentanter } from '@/lib/stortinget';
+import { getPersonbildeUrl } from '@/lib/stortinget-utils';
 import { ShieldCheck, MapPin, Building2, Search, User } from 'lucide-react';
 import FadeIn from '@/components/fade-in';
 import Image from 'next/image';
@@ -93,8 +94,17 @@ export default async function PolitikerePage() {
                   
                   <div className="p-6 flex flex-col flex-grow">
                     <div className="flex items-start justify-between mb-5">
-                      <div className={`w-14 h-14 rounded-2xl ${partyColors.bg} ${partyColors.text} ${partyColors.border} border flex items-center justify-center text-xl font-bold shadow-sm group-hover:scale-105 transition-transform duration-200`}>
-                        {rep.fornavn[0]}{rep.etternavn[0]}
+                      <div className="relative w-14 h-14 rounded-2xl shadow-sm overflow-hidden border border-gray-100 group-hover:scale-105 transition-transform duration-200 bg-gray-50">
+                        <Image
+                          src={getPersonbildeUrl(rep.id, 'lite', true)}
+                          alt={`${rep.fornavn} ${rep.etternavn}`}
+                          fill
+                          className="object-cover"
+                          sizes="56px"
+                        />
+                        <div className={`absolute inset-0 ${partyColors.bg} ${partyColors.text} flex items-center justify-center text-xl font-bold opacity-0`}>
+                          {rep.fornavn[0]}{rep.etternavn[0]}
+                        </div>
                       </div>
                       <div className="flex items-center bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-blue-100 shadow-sm">
                         <ShieldCheck className="w-3.5 h-3.5 mr-1" />
