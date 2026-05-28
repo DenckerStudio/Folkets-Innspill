@@ -10,7 +10,6 @@ import {
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
@@ -106,14 +105,13 @@ export function Header() {
                     <ul className="space-y-2 p-3">
                       {hurtiglenker.map((item) => (
                         <li key={item.href}>
-                          <NavigationMenuLink
-                            render={<Link href={item.href} />}
-                            closeOnClick
+                          <Link
+                            href={item.href}
                             className="flex p-2 hover:bg-accent flex-row rounded-md items-center gap-x-2"
                           >
                             <item.icon className="text-foreground size-4" />
                             <span className="font-medium">{item.title}</span>
-                          </NavigationMenuLink>
+                          </Link>
                         </li>
                       ))}
                     </ul>
@@ -267,13 +265,15 @@ function DesktopListItem({
   onNavigate?: () => void;
 }) {
   return (
-    <NavigationMenuLink
+    <Link
+      href={href}
+      onClick={onNavigate}
       className={cn(
-        'w-full flex flex-row gap-x-2 data-[active=true]:focus:bg-accent data-[active=true]:hover:bg-accent data-[active=true]:bg-accent/50 data-[active=true]:text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground rounded-sm p-2',
+        'w-full flex flex-row gap-x-2 rounded-sm p-2',
+        'hover:bg-accent hover:text-accent-foreground',
+        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
         className,
       )}
-      closeOnClick
-      render={<Link href={href} onClick={onNavigate} />}
     >
       <div className="bg-background/40 flex aspect-square size-12 items-center justify-center rounded-md border shadow-sm">
         <Icon className="text-foreground size-5" />
@@ -284,7 +284,7 @@ function DesktopListItem({
           <span className="text-muted-foreground text-xs">{description}</span>
         ) : null}
       </div>
-    </NavigationMenuLink>
+    </Link>
   );
 }
 
