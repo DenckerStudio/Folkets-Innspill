@@ -25,20 +25,41 @@ function buildPromptSource(input: {
   return { title, description };
 }
 
+function buildSummaryPrompt(title: string, description: string): string {
+  return `Du er en nøytral, lokal AI-assistent for «Folkets Stemme».
+Oppgaven din er å forklare en stortingssak på en måte vanlige borgere forstår – uten partipolitisk vinkling.
+
+SPRÅK (obligatorisk):
+- Skriv utelukkende på norsk (bokmål). Ingen engelske ord, ingen latinske forkortelser uten forklaring.
+- Bruk korte, tydelige setninger og vanlige ord. Forklar faguttrykk og forkortelser i parentes første gang de brukes.
+- Unngå byråkratspråk, passiv form der det gjør teksten uklar, og vage formuleringer som «det kan tenkes».
+
+STIL:
+- Vær saklig, nøktral og konkret. Ikke ta stilling til om forslaget er bra eller dårlig.
+- Bygg på informasjonen i kilden under. Ikke finn på tall, navn eller konsekvenser som ikke står der.
+- Hvis noe er uklart eller mangler i kilden, skriv det ærlig (f.eks. «Ikke oppgitt i saksdokumentene»).
+
+KILDE:
+Sakstittel: ${title}
+
+Saksinnhold:
+${description}
+
+SVARFORMAT:
+Svar KUN med gyldig JSON (ingen markdown, ingen forklaring utenfor JSON) med nøyaktig disse nøklene:
+
+"hva": Forklar hva saken handler om og hva som foreslås eller skal besluttes. Ta med bakgrunn og hovedpoeng slik at leseren forstår sammenhengen. 3–5 korte setninger.
+
+"hvem": Beskriv hvem som berøres direkte (borgere, bransjer, kommuner, staten osv.) og på hvilken måte. Nevn grupper eller interesser der det er relevant. 2–4 korte setninger.
+
+"kostnad": Beskriv økonomiske konsekvenser, budsjettposter eller andre ressursbruk som nevnes i kilden. Hvis ingen tall finnes, forklar likevel mulige økonomiske virkninger i klart språk, eller skriv at det ikke er oppgitt. 2–4 korte setninger.`;
+}
+
 async function generateSummary(
   title: string,
   description: string
 ): Promise<{ hva: string; hvem: string; kostnad: string }> {
-  const systemPrompt = `Du er en nøytral, lokal AI-assistent for "Folkets Stemme".
-Din oppgave er å forenkle følgende stortingssak for vanlige borgere.
-Sakstittel: ${title}
-Beskrivelse: ${description}
-
-Svar KUN med et JSON-objekt med følgende nøkler:
-"hva": Kort forklart, hva handler saken om? (maks 2 setninger)
-"hvem": Hvem påvirkes direkte av dette? (maks 2 setninger)
-"kostnad": Hva er den antatte økonomiske kostnaden eller konsekvensen? (maks 2 setninger)
-Svar på norsk.`;
+  const systemPrompt = buildSummaryPrompt(title, description);
 
   const ollamaUrl = process.env.NEXT_PUBLIC_OLLAMA_URL;
   let responseText = '{}';
@@ -51,7 +72,7 @@ Svar på norsk.`;
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'llama3',
+      model: process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'qwen2.5-coder:1.5b',
       prompt: systemPrompt,
       stream: false,
       format: 'json',
