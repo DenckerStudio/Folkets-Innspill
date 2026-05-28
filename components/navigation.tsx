@@ -10,24 +10,23 @@ type NavigationProps = {
   children: React.ReactNode;
 };
 
-/** Top header on `/` always; on other routes only when logged in. Bottom nav otherwise (mobile). */
+/** Below `md`: bottom nav. From `md` up: top header on `/` or when logged in. */
 export function Navigation({ children }: NavigationProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const isHome = pathname === '/';
   const isLoggedIn = !!user;
   const showTopHeader = isHome || isLoggedIn;
-  const showBottomNav = !showTopHeader;
 
   return (
     <>
-      {showTopHeader ? <Header enableMobileMenu /> : null}
-      {showBottomNav ? <MobileNav /> : null}
-      <div
-        className={cn(
-          showBottomNav && 'pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] lg:pb-0',
-        )}
-      >
+      {showTopHeader ? (
+        <div className="hidden md:block">
+          <Header />
+        </div>
+      ) : null}
+      <MobileNav />
+      <div className={cn('pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0')}>
         {children}
       </div>
     </>
