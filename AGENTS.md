@@ -11,7 +11,7 @@
 - **Auth**: Supabase Auth (email/password, Google OAuth, SMS OTP) — configured via Supabase Dashboard
 - **Database**: Supabase (PostgreSQL) with the `next_auth` schema for user management and `public` schema for domain tables
 - **External API**: Norwegian Parliament open data API (`data.stortinget.no`) — public, no auth required
-- **AI**: Optional Google Gemini API (`@google/genai`) for issue summaries
+- **AI**: Optional Ollama server (`NEXT_PUBLIC_OLLAMA_URL`, `NEXT_PUBLIC_OLLAMA_MODEL`) for issue summaries
 
 ### Running the app
 
@@ -28,4 +28,4 @@
 - **Build warning on `/horinger`**: The `/horinger` route fetches from its own API at build time, causing a non-fatal `DYNAMIC_SERVER_USAGE` error. This is expected.
 - **No automated test suite**: Validation is done via lint, build, and manual testing.
 - **Voting schema**: SQL migrations live in `supabase/migrations/`. Run `supabase db push` (or paste SQL in the dashboard) before vote APIs work. Ballots are in `citizen_votes` (no `user_id`); per-user choices are encrypted in `user_vote_receipts` via `pgcrypto`.
-- **GEMINI_API_KEY is optional**: Without it, AI summaries show a fallback message.
+- **Ollama is optional**: Without `NEXT_PUBLIC_OLLAMA_URL`, AI summaries retry and then show fallback text.
