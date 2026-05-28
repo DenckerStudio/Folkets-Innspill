@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
+import { createNotification, extractMentions, resolveMentionedUserIdsByName } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,29 @@ export async function POST(request: Request) {
         console.error('Create thread error:', error);
         return NextResponse.json({ error: 'Kunne ikke opprette tråd' }, { status: 500 });
       }
+
+      const origin = new URL(request.url).origin;
+      const threadId = data as string;
+
+      const mentionNames = extractMentions(String(payload.body || ''));
+      const mentionedUserIds = await resolveMentionedUserIdsByName(mentionNames);
+      await Promise.all(
+        mentionedUserIds
+          .filter((id) => id !== user.id)
+          .map((mentionedUserId) =>
+            createNotification({
+              userId: mentionedUserId,
+              type: 'mention',
+              channel: 'mentions',
+              title: 'Du ble nevnt i en ny forumtråd',
+              body: payload.title ? `Tråd: ${payload.title}` : null,
+              url: `/forum/${threadId}`,
+              data: { threadId, byUserId: user.id },
+              origin,
+            })
+          )
+      );
+
       return NextResponse.json({ success: true, threadId: data });
     }
 
@@ -41,6 +65,44 @@ export async function POST(request: Request) {
         console.error('Create reply error:', error);
         return NextResponse.json({ error: 'Kunne ikke publisere svar' }, { status: 500 });
       }
+
+      const origin = new URL(request.url).origin;
+      const threadId = String(payload.thread_id);
+      const replyId = data as string;
+
+      const { data: thread } = await service
+        .from('forum_threads')
+        .select('id,title,author_user_id')
+        .eq('id', threadId)
+        .maybeSingle();
+
+      const recipients = new Set<string>();
+      if (thread?.author_user_id && thread.author_user_id !== user.id) {
+        recipients.add(thread.author_user_id);
+      }
+
+      const mentionNames = extractMentions(String(payload.body || ''));
+      const mentionedUserIds = await resolveMentionedUserIdsByName(mentionNames);
+      for (const mentionedUserId of mentionedUserIds) {
+        if (mentionedUserId !== user.id) recipients.add(mentionedUserId);
+      }
+
+      await Promise.all(
+        [...recipients].map((recipientId) => {
+          const isMention = mentionedUserIds.includes(recipientId);
+          return createNotification({
+            userId: recipientId,
+            type: isMention ? 'mention' : 'forum_reply',
+            channel: isMention ? 'mentions' : 'forum',
+            title: isMention ? 'Du ble nevnt i forumet' : 'Nytt svar i en tråd du følger',
+            body: thread?.title ? `Tråd: ${thread.title}` : null,
+            url: `/forum/${threadId}`,
+            data: { threadId, replyId, byUserId: user.id },
+            origin,
+          });
+        })
+      );
+
       return NextResponse.json({ success: true, replyId: data });
     }
 

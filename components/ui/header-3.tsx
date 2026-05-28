@@ -14,7 +14,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
-import { LogIn, LogOut } from 'lucide-react';
+import { Bell, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,6 +33,7 @@ export function Header() {
   const { user } = useAuth();
   const router = useRouter();
   const isLoggedIn = !!user;
+  const [unreadCount, setUnreadCount] = React.useState(0);
   const displayName =
     user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
@@ -55,6 +56,29 @@ export function Header() {
     router.refresh();
   };
 
+  React.useEffect(() => {
+    let timer: number | undefined;
+    const load = async () => {
+      if (!isLoggedIn) {
+        setUnreadCount(0);
+        return;
+      }
+      try {
+        const res = await fetch('/api/notifications/unread-count', { cache: 'no-store' });
+        const json = await res.json();
+        setUnreadCount(Number(json.count || 0));
+      } catch {
+        // ignore
+      }
+    };
+
+    void load();
+    timer = window.setInterval(load, 30000);
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
+  }, [isLoggedIn]);
+
   return (
     <header
       className={cn(
@@ -67,12 +91,12 @@ export function Header() {
           <Link href="/" className="hover:opacity-90 rounded-md p-1 transition-opacity">
             <FolketsStemmeLogo />
           </Link>
-          <NavigationMenu className="hidden md:flex">
+          <NavigationMenu className="hidden lg:flex">
             <NavigationMenuList>
               <NavigationMenuItem>
                 <NavigationMenuTrigger className="bg-transparent">Utforsk</NavigationMenuTrigger>
                 <NavigationMenuContent className="bg-background p-1 pr-1.5">
-                  <ul className="bg-popover grid w-lg grid-cols-2 gap-2 rounded-md border p-2 shadow">
+                  <ul className="bg-popover grid w-96 grid-cols-2 gap-2 rounded-md border p-2 shadow">
                     {utforskLinks.map((item) => (
                       <li key={item.href}>
                         <ListItem {...item} onNavigate={() => setOpen(false)} />
@@ -95,7 +119,7 @@ export function Header() {
               <NavigationMenuItem>
                 <NavigationMenuTrigger className="bg-transparent">Delta</NavigationMenuTrigger>
                 <NavigationMenuContent className="bg-background p-1 pr-1.5 pb-1.5">
-                  <div className="grid w-lg grid-cols-2 gap-2">
+                  <div className="grid w-96 grid-cols-2 gap-2">
                     <ul className="bg-popover space-y-2 rounded-md border p-2 shadow">
                       {deltaLinks.map((item) => (
                         <li key={item.href}>
@@ -135,9 +159,21 @@ export function Header() {
             </NavigationMenuList>
           </NavigationMenu>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           {isLoggedIn ? (
             <>
+              <Link
+                href="/varsler"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+                aria-label="Varsler"
+              >
+                <Bell className="size-4" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -top-1 -right-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                ) : null}
+              </Link>
               <Button variant="outline" render={<Link href="/min-side" />}>
                 {displayName ? `Hei, ${displayName.split(' ')[0]}` : 'Min side'}
               </Button>
@@ -160,7 +196,7 @@ export function Header() {
           size="icon"
           variant="outline"
           onClick={() => setOpen(!open)}
-          className="md:hidden"
+          className="lg:hidden"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label="Åpne meny"
@@ -178,6 +214,18 @@ export function Header() {
         <div className="flex flex-col gap-2 pb-4">
           {isLoggedIn ? (
             <>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent justify-between"
+                render={<Link href="/varsler" onClick={() => setOpen(false)} />}
+              >
+                Varsler
+                {unreadCount > 0 ? (
+                  <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                ) : null}
+              </Button>
               <Button variant="outline" className="w-full bg-transparent" render={<Link href="/min-side" onClick={() => setOpen(false)} />}>
                 Min side
               </Button>
@@ -213,7 +261,7 @@ function MobileMenu({ open, children, className, ...props }: MobileMenuProps) {
       id="mobile-menu"
       className={cn(
         'bg-background/95 supports-[backdrop-filter]:bg-background/50 backdrop-blur-lg',
-        'fixed top-16 right-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden border-y md:hidden',
+        'fixed top-16 right-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden border-y lg:hidden',
       )}
     >
       <div

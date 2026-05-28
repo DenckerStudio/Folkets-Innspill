@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
+import { createNotification, extractMentions, resolveMentionedUserIdsByName } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,25 @@ export async function POST(request: Request) {
       console.error('Create hearing comment error:', error);
       return NextResponse.json({ error: 'Kunne ikke publisere innspill' }, { status: 500 });
     }
+
+    const origin = new URL(request.url).origin;
+    const mentionNames = extractMentions(String(body || ''));
+    const mentionedUserIds = await resolveMentionedUserIdsByName(mentionNames);
+    await Promise.all(
+      mentionedUserIds
+        .filter((id) => id !== user.id)
+        .map((mentionedUserId) =>
+          createNotification({
+            userId: mentionedUserId,
+            type: 'mention',
+            channel: 'mentions',
+            title: 'Du ble nevnt i et innspill',
+            url: `/horinger/${hearing_id}`,
+            data: { hearingId: hearing_id, commentId: data, byUserId: user.id },
+            origin,
+          })
+        )
+    );
 
     return NextResponse.json({ success: true, commentId: data });
   } catch (error) {
