@@ -10,7 +10,6 @@ import {
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
@@ -99,17 +98,14 @@ export function Header() {
                   <ul className="bg-popover grid w-96 grid-cols-2 gap-2 rounded-md border p-2 shadow">
                     {utforskLinks.map((item) => (
                       <li key={item.href}>
-                        <ListItem {...item} onNavigate={() => setOpen(false)} />
+                        <NavListItem {...item} />
                       </li>
                     ))}
                   </ul>
                   <div className="p-2">
                     <p className="text-muted-foreground text-sm">
                       Vil du delta?{' '}
-                      <Link
-                        href="/horinger"
-                        className="text-foreground font-medium hover:underline"
-                      >
+                      <Link href="/horinger" className="text-foreground font-medium hover:underline">
                         Se åpne høringer
                       </Link>
                     </p>
@@ -123,21 +119,20 @@ export function Header() {
                     <ul className="bg-popover space-y-2 rounded-md border p-2 shadow">
                       {deltaLinks.map((item) => (
                         <li key={item.href}>
-                          <ListItem {...item} onNavigate={() => setOpen(false)} />
+                          <NavListItem {...item} />
                         </li>
                       ))}
                     </ul>
                     <ul className="space-y-2 p-3">
                       {hurtiglenker.map((item) => (
                         <li key={item.href}>
-                          <NavigationMenuLink
-                            render={<Link href={item.href} />}
-                            closeOnClick
+                          <Link
+                            href={item.href}
                             className="flex p-2 hover:bg-accent flex-row rounded-md items-center gap-x-2"
                           >
                             <item.icon className="text-foreground size-4" />
                             <span className="font-medium">{item.title}</span>
-                          </NavigationMenuLink>
+                          </Link>
                         </li>
                       ))}
                     </ul>
@@ -150,7 +145,7 @@ export function Header() {
                   <ul className="bg-popover w-72 space-y-2 rounded-md border p-2 shadow">
                     {omLinks.map((item) => (
                       <li key={item.href}>
-                        <ListItem {...item} onNavigate={() => setOpen(false)} />
+                        <NavListItem {...item} />
                       </li>
                     ))}
                   </ul>
@@ -206,10 +201,10 @@ export function Header() {
       </nav>
       <MobileMenu open={open} className="flex flex-col justify-between gap-4 overflow-y-auto">
         <div className="flex w-full flex-col gap-y-4">
-          <NavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
-          <NavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
-          <NavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
-          <NavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
+          <MobileNavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
         </div>
         <div className="flex flex-col gap-2 pb-4">
           {isLoggedIn ? (
@@ -226,7 +221,11 @@ export function Header() {
                   </span>
                 ) : null}
               </Button>
-              <Button variant="outline" className="w-full bg-transparent" render={<Link href="/min-side" onClick={() => setOpen(false)} />}>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent"
+                render={<Link href="/min-side" onClick={() => setOpen(false)} />}
+              >
                 Min side
               </Button>
               <Button className="w-full" onClick={handleSignOut}>
@@ -235,7 +234,11 @@ export function Header() {
             </>
           ) : (
             <>
-              <Button variant="outline" className="w-full bg-transparent" render={<Link href="/auth/login" onClick={() => setOpen(false)} />}>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent"
+                render={<Link href="/auth/login" onClick={() => setOpen(false)} />}
+              >
                 Logg inn
               </Button>
               <Button className="w-full" render={<Link href="/auth/login" onClick={() => setOpen(false)} />}>
@@ -280,7 +283,7 @@ function MobileMenu({ open, children, className, ...props }: MobileMenuProps) {
   );
 }
 
-function NavSection({
+function MobileNavSection({
   title,
   links,
   onNavigate,
@@ -295,7 +298,7 @@ function NavSection({
       <ul className="space-y-1">
         {links.map((link) => (
           <li key={link.href}>
-            <ListItem {...link} onNavigate={onNavigate} />
+            <MobileListItem {...link} onNavigate={onNavigate} />
           </li>
         ))}
       </ul>
@@ -303,36 +306,57 @@ function NavSection({
   );
 }
 
-function ListItem({
+function NavListItem({
   title,
   description,
   icon: Icon,
-  className,
   href,
-  onNavigate,
-}: LinkItem & {
-  className?: string;
-  onNavigate?: () => void;
-}) {
+}: LinkItem) {
   return (
-    <NavigationMenuLink
+    <Link
+      href={href}
       className={cn(
-        'w-full flex flex-row gap-x-2 data-[active=true]:focus:bg-accent data-[active=true]:hover:bg-accent data-[active=true]:bg-accent/50 data-[active=true]:text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground rounded-sm p-2',
-        className,
+        'w-full flex flex-row gap-x-2 rounded-sm p-2',
+        'hover:bg-accent hover:text-accent-foreground',
+        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
       )}
-      closeOnClick
-      render={<Link href={href} onClick={onNavigate} />}
     >
       <div className="bg-background/40 flex aspect-square size-12 items-center justify-center rounded-md border shadow-sm">
         <Icon className="text-foreground size-5" />
       </div>
       <div className="flex flex-col items-start justify-center">
         <span className="font-medium">{title}</span>
-        {description ? (
-          <span className="text-muted-foreground text-xs">{description}</span>
-        ) : null}
+        {description ? <span className="text-muted-foreground text-xs">{description}</span> : null}
       </div>
-    </NavigationMenuLink>
+    </Link>
+  );
+}
+
+function MobileListItem({
+  title,
+  description,
+  icon: Icon,
+  href,
+  onNavigate,
+}: LinkItem & { onNavigate?: () => void }) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        'w-full flex flex-row gap-x-2 rounded-sm p-2',
+        'hover:bg-accent hover:text-accent-foreground',
+        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+      )}
+    >
+      <div className="bg-background/40 flex aspect-square size-12 items-center justify-center rounded-md border shadow-sm">
+        <Icon className="text-foreground size-5" />
+      </div>
+      <div className="flex flex-col items-start justify-center">
+        <span className="font-medium">{title}</span>
+        {description ? <span className="text-muted-foreground text-xs">{description}</span> : null}
+      </div>
+    </Link>
   );
 }
 
