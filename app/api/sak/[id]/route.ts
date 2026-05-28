@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase';
+import { getSakDetail } from '@/lib/stortinget';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,13 +23,8 @@ async function fetchAndCacheDetail(sakId: string) {
   }
 
   try {
-    const res = await fetch(
-      `https://data.stortinget.no/eksport/sak?sakid=${sakId}&format=json`,
-      { cache: 'no-store' }
-    );
-    if (!res.ok) return cached?.detail_json || null;
-
-    const detail = await res.json();
+    const detail = await getSakDetail(sakId);
+    if (!detail) return cached?.detail_json || null;
 
     await service.from('stortinget_issues').upsert(
       {

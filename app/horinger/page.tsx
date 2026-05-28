@@ -1,9 +1,17 @@
 import Link from 'next/link';
 import { ArrowRight, FileText, Search, Clock, Users } from 'lucide-react';
+import { headers } from 'next/headers';
+
+export const dynamic = 'force-dynamic';
 
 async function getHoringer() {
   try {
-    const res = await fetch('http://localhost:3000/api/horinger', { cache: 'no-store' });
+    const h = await headers();
+    const host = h.get('x-forwarded-host') || h.get('host');
+    const proto = h.get('x-forwarded-proto') || 'http';
+    const baseUrl = host ? `${proto}://${host}` : '';
+
+    const res = await fetch(`${baseUrl}/api/horinger`, { cache: 'no-store' });
     if (!res.ok) {
       throw new Error('Failed to fetch data');
     }
