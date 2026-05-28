@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LogIn } from 'lucide-react';
@@ -10,7 +10,7 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
   const [body, setBody] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async () => {
@@ -47,7 +47,7 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
   return (
     <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 mt-8">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Skriv et svar</h3>
-      {!session?.user ? (
+      {!user ? (
         <div className="text-center py-4">
           <Link href="/auth/login" className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium">
             <LogIn className="w-4 h-4 mr-1.5" />

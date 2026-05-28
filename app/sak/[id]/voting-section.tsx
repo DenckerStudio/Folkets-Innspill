@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ThumbsUp, ThumbsDown, Minus, CheckCircle, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useSession } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 
 function AnimatedPercent({ value, initialValue = 0 }: { value: number, initialValue?: number }) {
@@ -59,12 +59,45 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
   const [userVote, setUserVote] = useState<'for' | 'against' | 'abstain' | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: session } = useSession();
+  const [isLoadingVote, setIsLoadingVote] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadVoteState() {
+      try {
+        const res = await fetch(`/api/vote?issueId=${encodeURIComponent(sakId)}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        setVotes({
+          for: data.for ?? 0,
+          against: data.against ?? 0,
+          abstain: data.abstain ?? 0,
+          total: data.total ?? (data.for ?? 0) + (data.against ?? 0) + (data.abstain ?? 0),
+        });
+
+        if (data.userVote && ['for', 'against', 'abstain'].includes(data.userVote)) {
+          setUserVote(data.userVote);
+        }
+      } catch {
+        // Keep server-rendered initial totals on failure
+      } finally {
+        if (!cancelled) setIsLoadingVote(false);
+      }
+    }
+
+    loadVoteState();
+    return () => {
+      cancelled = true;
+    };
+  }, [sakId, user?.id]);
 
   const handleVote = async (type: 'for' | 'against' | 'abstain') => {
     if (userVote || isSubmitting) return;
     
-    if (!session?.user) {
+    if (!user) {
       setError('Du må logge inn for å stemme.');
       return;
     }
@@ -87,12 +120,15 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409 && data.userVote) {
+          setUserVote(data.userVote);
+        }
         setError(data.error || 'Kunne ikke registrere stemme.');
         setIsSubmitting(false);
         return;
       }
 
-      setUserVote(type);
+      setUserVote(data.userVote ?? type);
       if (data.totals) {
         const totals = data.totals;
         setVotes({
@@ -123,8 +159,12 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Hva mener du?</h2>
+
+      {isLoadingVote && user && (
+        <p className="text-center text-sm text-gray-400 mb-4">Laster din stemme…</p>
+      )}
       
-      {!session?.user && (
+      {!user && (
         <div className="mb-6 text-center">
           <Link href="/auth/login" className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500 font-medium">
             <LogIn className="w-4 h-4 mr-1.5" />
@@ -144,7 +184,7 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
           whileTap={!userVote ? { scale: 0.95 } : {}}
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('for')}
-          disabled={userVote !== null || isSubmitting}
+          disabled={userVote !== null || isSubmitting || isLoadingVote}
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'for' 
               ? 'border-emerald-500 bg-emerald-100 text-emerald-800 shadow-md ring-2 ring-emerald-500 ring-offset-2' 
@@ -176,7 +216,7 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
           whileTap={!userVote ? { scale: 0.95 } : {}}
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('abstain')}
-          disabled={userVote !== null || isSubmitting}
+          disabled={userVote !== null || isSubmitting || isLoadingVote}
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'abstain' 
               ? 'border-gray-400 bg-gray-200 text-gray-800 shadow-md ring-2 ring-gray-400 ring-offset-2' 
@@ -208,7 +248,7 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
           whileTap={!userVote ? { scale: 0.95 } : {}}
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('against')}
-          disabled={userVote !== null || isSubmitting}
+          disabled={userVote !== null || isSubmitting || isLoadingVote}
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'against' 
               ? 'border-rose-500 bg-rose-100 text-rose-800 shadow-md ring-2 ring-rose-500 ring-offset-2' 

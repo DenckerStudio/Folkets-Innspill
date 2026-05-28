@@ -15,15 +15,23 @@ const FIELD_GUIDANCE: Record<SummaryField, string> = {
 - 2–3 korte setninger. Ikke finn på kroner eller prosenter.`,
 };
 
+const LANGUAGE_RULES = `SPRÅK (obligatorisk):
+- Skriv utelukkende på norsk (bokmål).
+- Bruk korte, tydelige setninger og vanlige ord. Forklar faguttrykk første gang.
+- Vær saklig og nøytral. Ikke ta stilling til om forslaget er bra eller dårlig.
+- Bygg kun på kilden. Ikke finn på tall, navn eller konsekvenser som ikke står der.`;
+
 export function buildInitialGenerationPrompt(sakContextText: string): string {
-  return `Du er en nøytral, faktabasert assistent for "Folkets Stemme" som forenkler stortingssaker for vanlige borgere.
+  return `Du er en nøytral, faktabasert assistent for «Folkets Stemme» som forenkler stortingssaker for vanlige borgere.
+
+${LANGUAGE_RULES}
 
 KILDE (stortingssak – bruk kun dette som grunnlag):
 ---
 ${sakContextText}
 ---
 
-Oppgave: Lag tre korte forklaringer på norsk. Hver skal være selvstendig lesbar og forankret i kildematerialet.
+Oppgave: Lag tre korte forklaringer. Hver skal være selvstendig lesbar og forankret i kildematerialet.
 
 ${FIELD_GUIDANCE.hva}
 

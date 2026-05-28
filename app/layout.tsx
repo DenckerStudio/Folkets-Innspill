@@ -1,6 +1,10 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Navigation } from '@/components/navigation';
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: 'Folkets Stemme',
@@ -9,12 +13,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
-    <html lang="no" suppressHydrationWarning>
+    <html lang="no" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body className="bg-gray-50 min-h-screen font-sans text-gray-900" suppressHydrationWarning>
-        <Navigation />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {children}
-        </main>
+        <Navigation>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+            {children}
+          </main>
+        </Navigation>
       </body>
     </html>
   );

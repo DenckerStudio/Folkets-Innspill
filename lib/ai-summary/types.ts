@@ -10,6 +10,7 @@ export interface SakContext {
   innstillingstekst?: string;
   kortvedtak?: string;
   vedtakstekst?: string;
+  parentestekst?: string;
 }
 
 export interface FieldValidationResult {

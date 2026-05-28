@@ -1,28 +1,25 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json([], { status: 200 });
     }
 
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase.rpc('get_user_vote_history', {
-      p_user_id: session.user.id,
-    });
-
+    const service = getServiceSupabase();
+    const { data, error } = await service.rpc('get_user_vote_history', { p_user_id: user.id });
     if (error) {
       console.error('Vote history error:', error);
       return NextResponse.json([]);
     }
-
-    return NextResponse.json(data || []);
+    const history = Array.isArray(data) ? data : [];
+    return NextResponse.json(history);
   } catch (error) {
     console.error('Vote history error:', error);
     return NextResponse.json([]);

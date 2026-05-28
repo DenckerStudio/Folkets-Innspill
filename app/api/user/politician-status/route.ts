@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ isVerified: false });
     }
 
-    const supabase = getServiceSupabase();
-    const { data } = await supabase
+    const service = getServiceSupabase();
+    const { data } = await service
       .from('politician_profiles')
       .select('id')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single();
 
     return NextResponse.json({ isVerified: !!data });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ isVerified: false });
   }
 }

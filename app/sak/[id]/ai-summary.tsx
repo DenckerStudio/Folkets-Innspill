@@ -9,46 +9,87 @@ interface SummaryData {
   hvem: string;
   kostnad: string;
   cached?: boolean;
-  allApproved?: boolean;
 }
 
-export default function AiSummary({ sakId }: { sakId: string }) {
+export default function AiSummary({
+  sakId,
+  title,
+  summary,
+}: {
+  sakId: string;
+  title: string;
+  summary: string;
+}) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SummaryData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function fetchSummary() {
-      try {
-        const res = await fetch(`/api/sak/${sakId}/ai-summary`);
-        const json = await res.json();
+      const MAX_ATTEMPTS = 5;
+      let attempt = 0;
 
-        if (!res.ok) {
-          throw new Error(json.error || 'Kunne ikke hente sammendrag');
-        }
+      while (!cancelled && attempt < MAX_ATTEMPTS) {
+        attempt += 1;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 120_000);
 
-        if (!cancelled) {
-          setData({
-            hva: json.hva,
-            hvem: json.hvem,
-            kostnad: json.kostnad,
-            cached: json.cached,
-            allApproved: json.allApproved,
+          const res = await fetch(`/api/sak/${sakId}/ai-summary`, {
+            signal: controller.signal,
           });
+          clearTimeout(timeout);
+
+          const json = await res.json().catch(() => ({}));
+
+          if (res.ok && json?.hva && !json?.error) {
+            if (!cancelled) {
+              setErrorMessage(null);
+              setData({
+                hva: json.hva || 'Ingen informasjon tilgjengelig.',
+                hvem: json.hvem || 'Ukjent',
+                kostnad: json.kostnad || 'Ukjent',
+                cached: json.cached === true,
+              });
+              setLoading(false);
+            }
+            return;
+          }
+
+          const retryAfterSeconds =
+            typeof json?.retry_after_seconds === 'number' && json.retry_after_seconds > 0
+              ? json.retry_after_seconds
+              : 10;
+
+          if (!cancelled) {
+            setErrorMessage('Genererer og kvalitetssjekker AI-oppsummering …');
+            setLoading(true);
+          }
+
+          await new Promise((r) => setTimeout(r, retryAfterSeconds * 1000));
+        } catch (error) {
+          console.error('Failed to fetch AI summary', error);
+          if (!cancelled) {
+            setErrorMessage('Genererer og kvalitetssjekker AI-oppsummering …');
+            setLoading(true);
+          }
+          await new Promise((r) => setTimeout(r, 10_000));
         }
-      } catch (error) {
-        console.error('Failed to fetch AI summary', error);
-        if (!cancelled) {
-          setData({
-            hva: 'Kunne ikke generere sammendrag for øyeblikket.',
-            hvem: 'Ukjent',
-            kostnad: 'Ukjent',
-            allApproved: false,
-          });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      }
+
+      if (!cancelled) {
+        setLoading(false);
+        setErrorMessage('Kunne ikke generere AI-oppsummering akkurat nå.');
+        setData({
+          hva: `Saken handler om: ${title}`,
+          hvem: 'Se saksdokumentene for detaljer.',
+          kostnad:
+            summary.includes('milliard') || summary.includes('kr')
+              ? 'Se saksdokumentene for økonomiske tall.'
+              : 'Ikke spesifisert i kortversjonen.',
+        });
       }
     }
 
@@ -56,65 +97,63 @@ export default function AiSummary({ sakId }: { sakId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [sakId]);
+  }, [sakId, title, summary]);
+
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-100 p-8 animate-pulse">
+        <div className="h-6 bg-indigo-100 rounded w-1/3 mb-6"></div>
+        {errorMessage && <div className="text-sm text-indigo-700 mb-3">{errorMessage}</div>}
+        <div className="space-y-4">
+          <div className="h-4 bg-indigo-50 rounded w-full"></div>
+          <div className="h-4 bg-indigo-50 rounded w-5/6"></div>
+          <div className="h-4 bg-indigo-50 rounded w-4/6"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const items = [
+    { icon: BrainCircuit, label: 'Hva?', text: data.hva, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { icon: Users, label: 'Hvem?', text: data.hvem, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { icon: Coins, label: 'Kostnad?', text: data.kostnad, color: 'text-amber-600', bg: 'bg-amber-50' },
+  ];
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-      <div className="bg-slate-50 border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <BrainCircuit className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Kort forklart av AI</h2>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-100 p-8 shadow-sm"
+    >
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-gray-900 flex items-center">
+          <ShieldCheck className="w-6 h-6 text-indigo-600 mr-2" />
+          AI-forklart (nøytral)
+        </h2>
         <div className="flex items-center gap-2">
-          {data?.cached && (
+          {data.cached && (
             <span className="text-xs text-gray-500 hidden sm:inline">Lagret sammendrag</span>
           )}
-          <div className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium border border-emerald-100">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Lokal AI (Norge) - 100% Personvern</span>
-          </div>
+          <span className="text-xs text-gray-400 flex items-center">
+            <Info className="w-3 h-3 mr-1" />
+            Generert lokalt
+          </span>
         </div>
       </div>
 
-      <div className="p-6">
-        {loading ? (
-          <div className="space-y-4 animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+      <div className="grid gap-6 md:grid-cols-3">
+        {items.map((item) => (
+          <div key={item.label} className={`${item.bg} rounded-xl p-5`}>
+            <div className={`flex items-center ${item.color} font-semibold mb-2`}>
+              <item.icon className="w-5 h-5 mr-2" />
+              {item.label}
+            </div>
+            <p className="text-gray-700 text-sm leading-relaxed">{item.text}</p>
           </div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6"
-          >
-            <div className="space-y-2">
-              <div className="flex items-center text-indigo-600 font-medium mb-2">
-                <Info className="w-4 h-4 mr-2" />
-                Hva er saken?
-              </div>
-              <p className="text-gray-700 text-sm leading-relaxed">{data?.hva}</p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center text-amber-600 font-medium mb-2">
-                <Users className="w-4 h-4 mr-2" />
-                Hvem påvirkes?
-              </div>
-              <p className="text-gray-700 text-sm leading-relaxed">{data?.hvem}</p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center text-emerald-600 font-medium mb-2">
-                <Coins className="w-4 h-4 mr-2" />
-                Hva er kostnaden?
-              </div>
-              <p className="text-gray-700 text-sm leading-relaxed">{data?.kostnad}</p>
-            </div>
-          </motion.div>
-        )}
+        ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

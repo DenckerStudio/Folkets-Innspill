@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { MessageSquare, ShieldCheck } from 'lucide-react';
-import { useSession } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function PoliticianResponseForm({ sakId }: { sakId?: string }) {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const [isVerifiedPolitician, setIsVerifiedPolitician] = useState(false);
   const [response, setResponse] = useState('');
   const [isPublished, setIsPublished] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!session?.user) {
+    if (!user) {
       setIsVerifiedPolitician(false);
       return;
     }
@@ -21,7 +21,7 @@ export default function PoliticianResponseForm({ sakId }: { sakId?: string }) {
       .then(res => res.json())
       .then(data => setIsVerifiedPolitician(data.isVerified || false))
       .catch(() => setIsVerifiedPolitician(false));
-  }, [session]);
+  }, [user]);
 
   if (!isVerifiedPolitician) return null;
 

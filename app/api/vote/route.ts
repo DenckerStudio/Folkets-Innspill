@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+
+type VoteChoice = 'for' | 'against' | 'abstain';
+
+function parseTotals(data: unknown) {
+  if (!data || typeof data !== 'object') {
+    return { for: 0, against: 0, abstain: 0, total: 0 };
+  }
+  const t = data as Record<string, number>;
+  const forCount = t.for ?? 0;
+  const againstCount = t.against ?? 0;
+  const abstainCount = t.abstain ?? 0;
+  return {
+    for: forCount,
+    against: againstCount,
+    abstain: abstainCount,
+    total: t.total ?? forCount + againstCount + abstainCount,
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -17,40 +34,75 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ugyldig stemmetype' }, { status: 400 });
     }
 
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user) {
+    if (!user) {
       return NextResponse.json({ error: 'Du må være logget inn for å stemme' }, { status: 401 });
     }
 
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase.rpc('cast_vote', {
-      p_user_id: session.user.id,
-      p_issue_id: issueId,
-      p_choice: vote,
-      p_title: title || null,
-      p_summary: summary || null,
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Vote error: SUPABASE_SERVICE_ROLE_KEY is not configured');
+      return NextResponse.json(
+        { error: 'Stemming er ikke konfigurert på serveren (mangler service role key).' },
+        { status: 503 }
+      );
+    }
+
+    const service = getServiceSupabase();
+    const { data, error } = await service.rpc('cast_vote', {
+      p_user_id: user.id,
+      p_issue_id: String(issueId),
+      p_choice: vote as VoteChoice,
+      p_title: title ?? null,
+      p_summary: summary ?? null,
     });
 
     if (error) {
-      if (error.message?.includes('Already voted')) {
+      const msg = error.message ?? '';
+      const details = error.details ?? '';
+      const combined = `${msg} ${details}`.toLowerCase();
+
+      if (combined.includes('already voted')) {
         return NextResponse.json({ error: 'Du har allerede stemt på denne saken' }, { status: 409 });
       }
-      if (error.message?.includes('Identity not verified')) {
+      if (combined.includes('identity not verified')) {
         return NextResponse.json({ error: 'Din identitet er ikke verifisert ennå' }, { status: 403 });
       }
-      console.error('Vote RPC error:', error);
-      return NextResponse.json({ error: 'Kunne ikke registrere stemme' }, { status: 500 });
+      if (combined.includes('not unique') || combined.includes('could not choose')) {
+        return NextResponse.json(
+          {
+            error: 'Databasefeil: flere cast_vote-funksjoner. Kjør supabase/migrations/20260528000002_vote_schema_repair.sql.',
+          },
+          { status: 500 }
+        );
+      }
+      if (combined.includes('does not exist') && combined.includes('cast_vote')) {
+        return NextResponse.json(
+          {
+            error: 'Stemme-API er ikke satt opp i databasen. Kjør Supabase-migrasjonene.',
+          },
+          { status: 503 }
+        );
+      }
+
+      console.error('Vote RPC error:', { message: error.message, details: error.details, hint: error.hint, code: error.code });
+      return NextResponse.json(
+        {
+          error: 'Kunne ikke registrere stemme',
+          code: error.code,
+          hint: process.env.NODE_ENV === 'development' ? error.hint ?? error.message : undefined,
+        },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Stemme registrert anonymt',
-      totals: data
+      totals: parseTotals(data),
+      userVote: vote,
     });
-
   } catch (error) {
     console.error('Voting Error:', error);
     return NextResponse.json({ error: 'Kunne ikke registrere stemme' }, { status: 500 });
@@ -66,19 +118,36 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase.rpc('get_issue_vote_totals', {
+    const service = getServiceSupabase();
+    const { data: totalsData, error: totalsError } = await service.rpc('get_issue_vote_totals', {
       p_issue_id: issueId,
     });
 
-    if (error) {
-      console.error('Vote totals error:', error);
-      return NextResponse.json({ for: 0, against: 0, abstain: 0 });
+    const totals = totalsError ? { for: 0, against: 0, abstain: 0, total: 0 } : parseTotals(totalsData);
+
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    let userVote: VoteChoice | null = null;
+    let hasVoted = false;
+
+    if (user) {
+      const { data: userData } = await service.rpc('get_user_vote_on_issue', {
+        p_user_id: user.id,
+        p_issue_id: issueId,
+      });
+      if (userData && typeof userData === 'object') {
+        const u = userData as { hasVoted?: boolean; vote?: VoteChoice };
+        hasVoted = Boolean(u.hasVoted);
+        if (u.vote && ['for', 'against', 'abstain'].includes(u.vote)) {
+          userVote = u.vote;
+        }
+      }
     }
 
-    return NextResponse.json(data || { for: 0, against: 0, abstain: 0 });
+    return NextResponse.json({ ...totals, hasVoted, userVote });
   } catch (error) {
     console.error('Error fetching vote totals:', error);
-    return NextResponse.json({ for: 0, against: 0, abstain: 0 });
+    return NextResponse.json({ for: 0, against: 0, abstain: 0, total: 0, hasVoted: false, userVote: null });
   }
 }

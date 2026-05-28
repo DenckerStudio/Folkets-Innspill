@@ -27,14 +27,15 @@ export async function GET(
     console.error('[ai-summary] GET error:', error);
     return NextResponse.json(
       {
-        error: 'Kunne ikke generere AI-sammendrag',
+        error: true,
         hva: 'Kunne ikke generere sammendrag for øyeblikket.',
         hvem: 'Ukjent',
         kostnad: 'Ukjent',
         cached: false,
         allApproved: false,
+        retry_after_seconds: 10,
       },
-      { status: 500 }
+      { status: 503 }
     );
   }
 }
@@ -64,8 +65,11 @@ export async function POST(
   } catch (error) {
     console.error('[ai-summary] POST regenerate error:', error);
     return NextResponse.json(
-      { error: 'Kunne ikke regenerere AI-sammendrag' },
-      { status: 500 }
+      {
+        error: true,
+        retry_after_seconds: 10,
+      },
+      { status: 503 }
     );
   }
 }

@@ -84,7 +84,19 @@ export async function saveApprovedSummary(
 
   if (error) {
     console.error('[ai-summary] Kunne ikke lagre godkjent sammendrag:', error);
+    return;
   }
+
+  // Mirror into stortinget_issues for compatibility with main-branch consumers
+  await supabase.from('stortinget_issues').upsert(
+    {
+      id: issueId,
+      ai_summary_json: summaries,
+      ai_summary_generated_at: new Date().toISOString(),
+      last_synced_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  );
 }
 
 export interface AiSummaryResponse {

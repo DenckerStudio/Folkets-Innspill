@@ -32,7 +32,10 @@ async function generateWithOllama(prompt: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.OLLAMA_MODEL || process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'llama3',
+      model:
+        process.env.OLLAMA_MODEL ||
+        process.env.NEXT_PUBLIC_OLLAMA_MODEL ||
+        'qwen2.5-coder:1.5b',
       prompt,
       stream: false,
       format: 'json',

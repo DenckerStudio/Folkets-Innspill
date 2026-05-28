@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { getSakDetail } from '@/lib/stortinget';
 import type { SakContext } from './types';
 
 const MAX_CONTEXT_CHARS = 12_000;
@@ -12,6 +13,7 @@ export function buildSakContextText(ctx: SakContext): string {
     ctx.innstillingstekst ? `Innstillingstekst:\n${ctx.innstillingstekst}` : null,
     ctx.kortvedtak ? `Kortvedtak:\n${ctx.kortvedtak}` : null,
     ctx.vedtakstekst ? `Vedtakstekst:\n${ctx.vedtakstekst}` : null,
+    ctx.parentestekst ? `Parentestekst:\n${ctx.parentestekst}` : null,
   ].filter(Boolean);
 
   let text = parts.join('\n\n');
@@ -29,20 +31,15 @@ export async function fetchDetailedSak(issueId: string): Promise<{
   innstillingstekst?: string;
   kortvedtak?: string;
   vedtakstekst?: string;
+  parentestekst?: string;
 }> {
-  try {
-    const res = await fetch(
-      `https://data.stortinget.no/eksport/sak?sakid=${issueId}&format=json`,
-      { next: { revalidate: 3600 } }
-    );
-    if (!res.ok) return {};
-    const data = await res.json();
-    return {
-      innstillingstekst: data.innstillingstekst ?? undefined,
-      kortvedtak: data.kortvedtak ?? undefined,
-      vedtakstekst: data.vedtakstekst ?? undefined,
-    };
-  } catch {
-    return {};
-  }
+  const detail = await getSakDetail(issueId, { nextRevalidateSeconds: 3600 });
+  if (!detail) return {};
+
+  return {
+    innstillingstekst: detail.innstillingstekst ?? undefined,
+    kortvedtak: detail.kortvedtak ?? undefined,
+    vedtakstekst: detail.vedtakstekst ?? undefined,
+    parentestekst: detail.parentestekst ?? undefined,
+  };
 }
