@@ -12,14 +12,16 @@ Or paste `supabase/migrations/*.sql` into the Supabase SQL editor.
 ## Voting setup
 
 1. Apply `20260528000001_anonymous_voting.sql` (requires `pgcrypto` in the `extensions` schema — standard on Supabase).
-2. If voting fails with 500, ambiguous `cast_vote`, or legacy schema errors, run **`20260528000002_vote_schema_repair.sql`** (drops duplicate RPCs, removes `user_id` from `citizen_votes`, fixes `identity_verified`).
-2. Set a strong pepper in the database (recommended via [Supabase Vault](https://supabase.com/docs/guides/database/vault)):
+2. If voting fails with 500, ambiguous `cast_vote`, or legacy schema errors, run **`20260528000002_vote_schema_repair.sql`**.
+3. Set a strong pepper **without** requiring `ALTER DATABASE` permissions:
 
 ```sql
-ALTER DATABASE postgres SET app.vote_encryption_secret = 'your-long-random-secret';
+INSERT INTO private.app_settings (key, value)
+VALUES ('vote_encryption_secret', 'your-long-random-secret')
+ON CONFLICT (key) DO UPDATE SET value = excluded.value;
 ```
 
-3. Ensure `SUPABASE_SERVICE_ROLE_KEY` is set in the Next.js app (server-only).
+4. Ensure `SUPABASE_SERVICE_ROLE_KEY` is set in the Next.js app (server-only).
 
 ### Architecture
 

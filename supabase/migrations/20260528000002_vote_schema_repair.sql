@@ -1,6 +1,9 @@
 -- Repair common issues after partial migrations or legacy schema
 -- Run this if voting returns 500 or "function name cast_vote is not unique"
 
+CREATE SCHEMA IF NOT EXISTS private;
+REVOKE ALL ON SCHEMA private FROM anon, authenticated;
+
 CREATE TABLE IF NOT EXISTS public.stortinget_issues (
   id text PRIMARY KEY,
   title text,
@@ -62,6 +65,26 @@ BEGIN
   END LOOP;
 END $$;
 
+CREATE TABLE IF NOT EXISTS private.app_settings (
+  key text PRIMARY KEY,
+  value text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+REVOKE ALL ON TABLE private.app_settings FROM anon, authenticated;
+
+CREATE OR REPLACE FUNCTION private.get_setting(p_key text)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = private, public
+AS $$
+  SELECT value FROM private.app_settings WHERE key = p_key;
+$$;
+
+REVOKE ALL ON FUNCTION private.get_setting(text) FROM anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.vote_encryption_key(p_user_id uuid)
 RETURNS text
 LANGUAGE sql
@@ -73,6 +96,7 @@ AS $$
     extensions.digest(
       convert_to(
         p_user_id::text || coalesce(
+          private.get_setting('vote_encryption_secret'),
           current_setting('app.vote_encryption_secret', true),
           'folkets-stemme-dev-pepper-change-in-production'
         ),

@@ -4,6 +4,11 @@
 -- Supabase installs pgcrypto in the "extensions" schema (not public)
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
+-- Store server-side secrets outside public schemas.
+-- This avoids requiring ALTER DATABASE / ALTER SYSTEM privileges for custom GUCs.
+CREATE SCHEMA IF NOT EXISTS private;
+REVOKE ALL ON SCHEMA private FROM anon, authenticated;
+
 -- Issue metadata cache (also used when casting votes)
 CREATE TABLE IF NOT EXISTS public.stortinget_issues (
   id text PRIMARY KEY,
@@ -101,7 +106,31 @@ BEGIN
   END LOOP;
 END $$;
 
--- Derive per-user encryption key material (pepper should be set in Supabase Vault / app.settings)
+-- Server-side secret used as pepper for vote receipt encryption.
+-- Set once manually (SQL Editor) as a privileged role:
+--   INSERT INTO private.app_settings (key, value)
+--   VALUES ('vote_encryption_secret', '<random>') ON CONFLICT (key) DO UPDATE SET value = excluded.value;
+CREATE TABLE IF NOT EXISTS private.app_settings (
+  key text PRIMARY KEY,
+  value text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+REVOKE ALL ON TABLE private.app_settings FROM anon, authenticated;
+
+CREATE OR REPLACE FUNCTION private.get_setting(p_key text)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = private, public
+AS $$
+  SELECT value FROM private.app_settings WHERE key = p_key;
+$$;
+
+REVOKE ALL ON FUNCTION private.get_setting(text) FROM anon, authenticated;
+
+-- Derive per-user encryption key material.
 CREATE OR REPLACE FUNCTION public.vote_encryption_key(p_user_id uuid)
 RETURNS text
 LANGUAGE sql
@@ -113,6 +142,7 @@ AS $$
     extensions.digest(
       convert_to(
         p_user_id::text || coalesce(
+          private.get_setting('vote_encryption_secret'),
           current_setting('app.vote_encryption_secret', true),
           'folkets-stemme-dev-pepper-change-in-production'
         ),
