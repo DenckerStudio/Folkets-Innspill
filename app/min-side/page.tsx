@@ -13,6 +13,15 @@ function MinSideContent() {
   const { user, loading: isPending, signOut } = useAuth();
   const [voteHistory, setVoteHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [interestCategories, setInterestCategories] = useState<string[]>([]);
+  const [categoriesSaving, setCategoriesSaving] = useState(false);
+  const [notifEmailEnabled, setNotifEmailEnabled] = useState(true);
+  const [notifFreq, setNotifFreq] = useState<Record<string, string>>({
+    forum: 'realtime',
+    mentions: 'realtime',
+    categories: 'daily',
+  });
+  const [notifSaving, setNotifSaving] = useState(false);
 
   const tabParam = searchParams.get('tab');
   const validTabs = ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'];
@@ -37,6 +46,30 @@ function MinSideContent() {
       })
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/notifications/categories', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (Array.isArray(json.categories)) setInterestCategories(json.categories);
+      })
+      .catch(() => {});
+
+    fetch('/api/notifications/preferences', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.preferences) {
+          if (typeof json.preferences.email_enabled === 'boolean') {
+            setNotifEmailEnabled(json.preferences.email_enabled);
+          }
+          if (json.preferences.email_frequency_by_channel && typeof json.preferences.email_frequency_by_channel === 'object') {
+            setNotifFreq((prev) => ({ ...prev, ...json.preferences.email_frequency_by_channel }));
+          }
+        }
+      })
+      .catch(() => {});
   }, [user]);
 
   const handleSignOut = async () => {
@@ -198,10 +231,42 @@ function MinSideContent() {
                       <span className="font-medium text-gray-900">{cat}</span>
                     </div>
                     <div className="ml-3 flex items-center h-5">
-                      <input type="checkbox" className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                      <input
+                        type="checkbox"
+                        checked={interestCategories.includes(cat)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...new Set([...interestCategories, cat])]
+                            : interestCategories.filter((c) => c !== cat);
+                          setInterestCategories(next);
+                        }}
+                        className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                      />
                     </div>
                   </label>
                 ))}
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setCategoriesSaving(true);
+                    try {
+                      await fetch('/api/notifications/categories', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ categories: interestCategories }),
+                      });
+                    } finally {
+                      setCategoriesSaving(false);
+                    }
+                  }}
+                  disabled={categoriesSaving}
+                  className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {categoriesSaving ? 'Lagrer…' : 'Lagre interesseområder'}
+                </button>
               </div>
             </div>
           )}
@@ -209,23 +274,69 @@ function MinSideContent() {
           {activeTab === 'varsler' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Varslingsinnstillinger</h3>
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900">Nye saker i mine interesseområder</h4>
-                    <p className="text-sm text-gray-500">Få e-post når det legges ut nye saker du bryr deg om.</p>
+                    <h4 className="text-sm font-medium text-gray-900">E-postvarsler</h4>
+                    <p className="text-sm text-gray-500">Slå av/på e-postvarsler. In-app varsler påvirkes ikke.</p>
                   </div>
-                  <button type="button" className="bg-indigo-600 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200" role="switch" aria-checked="true">
-                    <span aria-hidden="true" className="translate-x-5 pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
+                  <button
+                    type="button"
+                    onClick={() => setNotifEmailEnabled((v) => !v)}
+                    className={`${notifEmailEnabled ? 'bg-indigo-600' : 'bg-gray-200'} relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200`}
+                    role="switch"
+                    aria-checked={notifEmailEnabled}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`${notifEmailEnabled ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200`}
+                    />
                   </button>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">Resultat av voteringer</h4>
-                    <p className="text-sm text-gray-500">Få varsel når Stortinget har stemt over en sak du har engasjert deg i.</p>
-                  </div>
-                  <button type="button" className="bg-gray-200 relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200" role="switch" aria-checked="false">
-                    <span aria-hidden="true" className="translate-x-0 pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {[
+                    { key: 'forum', label: 'Forum' },
+                    { key: 'mentions', label: 'Mentions' },
+                    { key: 'categories', label: 'Kategorier/hjertesaker' },
+                  ].map((row) => (
+                    <div key={row.key} className="rounded-xl border border-gray-200 p-4 bg-white">
+                      <div className="text-sm font-medium text-gray-900 mb-2">{row.label}</div>
+                      <select
+                        value={notifFreq[row.key] || 'daily'}
+                        onChange={(e) => setNotifFreq((prev) => ({ ...prev, [row.key]: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="realtime">Sanntid</option>
+                        <option value="daily">Daglig</option>
+                        <option value="weekly">Ukentlig</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setNotifSaving(true);
+                      try {
+                        await fetch('/api/notifications/preferences', {
+                          method: 'POST',
+                          headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({
+                            email_enabled: notifEmailEnabled,
+                            email_frequency_by_channel: notifFreq,
+                          }),
+                        });
+                      } finally {
+                        setNotifSaving(false);
+                      }
+                    }}
+                    disabled={notifSaving}
+                    className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {notifSaving ? 'Lagrer…' : 'Lagre varslingsinnstillinger'}
                   </button>
                 </div>
               </div>
