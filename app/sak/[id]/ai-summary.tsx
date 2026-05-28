@@ -4,9 +4,24 @@ import { ShieldCheck, BrainCircuit, Users, Coins, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 
-export default function AiSummary({ sakId, title, summary }: { sakId: string; title: string; summary: string }) {
+interface SummaryData {
+  hva: string;
+  hvem: string;
+  kostnad: string;
+  cached?: boolean;
+}
+
+export default function AiSummary({
+  sakId,
+  title,
+  summary,
+}: {
+  sakId: string;
+  title: string;
+  summary: string;
+}) {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{ hva: string; hvem: string; kostnad: string } | null>(null);
+  const [data, setData] = useState<SummaryData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,18 +37,21 @@ export default function AiSummary({ sakId, title, summary }: { sakId: string; ti
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 120_000);
 
-          const res = await fetch(`/api/sak/${sakId}/ai-summary`, { signal: controller.signal });
+          const res = await fetch(`/api/sak/${sakId}/ai-summary`, {
+            signal: controller.signal,
+          });
           clearTimeout(timeout);
 
           const json = await res.json().catch(() => ({}));
 
-          if (res.ok && !json?.error) {
+          if (res.ok && json?.hva && !json?.error) {
             if (!cancelled) {
               setErrorMessage(null);
               setData({
                 hva: json.hva || 'Ingen informasjon tilgjengelig.',
                 hvem: json.hvem || 'Ukjent',
                 kostnad: json.kostnad || 'Ukjent',
+                cached: json.cached === true,
               });
               setLoading(false);
             }
@@ -46,16 +64,15 @@ export default function AiSummary({ sakId, title, summary }: { sakId: string; ti
               : 10;
 
           if (!cancelled) {
-            setErrorMessage('Genererer AI-oppsummering …');
+            setErrorMessage('Genererer og kvalitetssjekker AI-oppsummering …');
             setLoading(true);
           }
 
           await new Promise((r) => setTimeout(r, retryAfterSeconds * 1000));
-          continue;
         } catch (error) {
-          console.error('Failed to fetch summary', error);
+          console.error('Failed to fetch AI summary', error);
           if (!cancelled) {
-            setErrorMessage('Genererer AI-oppsummering …');
+            setErrorMessage('Genererer og kvalitetssjekker AI-oppsummering …');
             setLoading(true);
           }
           await new Promise((r) => setTimeout(r, 10_000));
@@ -68,9 +85,10 @@ export default function AiSummary({ sakId, title, summary }: { sakId: string; ti
         setData({
           hva: `Saken handler om: ${title}`,
           hvem: 'Se saksdokumentene for detaljer.',
-          kostnad: summary.includes('milliard') || summary.includes('kr')
-            ? 'Se saksdokumentene for økonomiske tall.'
-            : 'Ikke spesifisert i kortversjonen.',
+          kostnad:
+            summary.includes('milliard') || summary.includes('kr')
+              ? 'Se saksdokumentene for økonomiske tall.'
+              : 'Ikke spesifisert i kortversjonen.',
         });
       }
     }
@@ -114,10 +132,15 @@ export default function AiSummary({ sakId, title, summary }: { sakId: string; ti
           <ShieldCheck className="w-6 h-6 text-indigo-600 mr-2" />
           AI-forklart (nøytral)
         </h2>
-        <span className="text-xs text-gray-400 flex items-center">
-          <Info className="w-3 h-3 mr-1" />
-          Generert lokalt
-        </span>
+        <div className="flex items-center gap-2">
+          {data.cached && (
+            <span className="text-xs text-gray-500 hidden sm:inline">Lagret sammendrag</span>
+          )}
+          <span className="text-xs text-gray-400 flex items-center">
+            <Info className="w-3 h-3 mr-1" />
+            Generert lokalt
+          </span>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
