@@ -14,7 +14,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
-import { LogIn, LogOut } from 'lucide-react';
+import { Bell, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,6 +33,7 @@ export function Header() {
   const { user } = useAuth();
   const router = useRouter();
   const isLoggedIn = !!user;
+  const [unreadCount, setUnreadCount] = React.useState(0);
   const displayName =
     user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
@@ -54,6 +55,29 @@ export function Header() {
     router.push('/');
     router.refresh();
   };
+
+  React.useEffect(() => {
+    let timer: number | undefined;
+    const load = async () => {
+      if (!isLoggedIn) {
+        setUnreadCount(0);
+        return;
+      }
+      try {
+        const res = await fetch('/api/notifications/unread-count', { cache: 'no-store' });
+        const json = await res.json();
+        setUnreadCount(Number(json.count || 0));
+      } catch {
+        // ignore
+      }
+    };
+
+    void load();
+    timer = window.setInterval(load, 30000);
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
+  }, [isLoggedIn]);
 
   return (
     <header
@@ -138,6 +162,18 @@ export function Header() {
         <div className="hidden items-center gap-2 md:flex">
           {isLoggedIn ? (
             <>
+              <Link
+                href="/varsler"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+                aria-label="Varsler"
+              >
+                <Bell className="size-4" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -top-1 -right-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                ) : null}
+              </Link>
               <Button variant="outline" render={<Link href="/min-side" />}>
                 {displayName ? `Hei, ${displayName.split(' ')[0]}` : 'Min side'}
               </Button>
@@ -178,6 +214,18 @@ export function Header() {
         <div className="flex flex-col gap-2 pb-4">
           {isLoggedIn ? (
             <>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent justify-between"
+                render={<Link href="/varsler" onClick={() => setOpen(false)} />}
+              >
+                Varsler
+                {unreadCount > 0 ? (
+                  <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                ) : null}
+              </Button>
               <Button variant="outline" className="w-full bg-transparent" render={<Link href="/min-side" onClick={() => setOpen(false)} />}>
                 Min side
               </Button>
