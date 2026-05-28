@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
     const service = getServiceSupabase();
 
-    const categories = [...new Set(fresh.map((i) => i.category).filter(Boolean))];
+    const categories = [...new Set(fresh.flatMap((i) => (i.categories as string[] | undefined) || [i.category]).filter(Boolean))];
     const { data: subs } = await service
       .from('notification_category_subscriptions')
       .select('user_id,category')
@@ -70,24 +70,35 @@ export async function GET(request: Request) {
 
     let created = 0;
     for (const issue of fresh) {
-      const userIds = byCategory.get(issue.category);
-      if (!userIds || userIds.size === 0) continue;
+      const issueCats = (issue.categories as string[] | undefined) || [issue.category];
+      const notifiedUsers = new Set<string>();
 
-      await Promise.all(
-        [...userIds].map(async (userId) => {
-          created += 1;
-          return createNotification({
-            userId,
-            type: 'new_case_in_category',
-            channel: 'categories',
-            title: `Ny sak i ${issue.category}`,
-            body: issue.title,
-            url: `/sak/${issue.id}`,
-            data: { issueId: issue.id, category: issue.category, status: issue.status, date: issue.date },
-            origin,
-          });
-        })
-      );
+      for (const cat of issueCats) {
+        const userIds = byCategory.get(cat);
+        if (!userIds || userIds.size === 0) continue;
+
+        await Promise.all(
+          [...userIds]
+            .filter((userId) => {
+              if (notifiedUsers.has(userId)) return false;
+              notifiedUsers.add(userId);
+              return true;
+            })
+            .map(async (userId) => {
+              created += 1;
+              return createNotification({
+                userId,
+                type: 'new_case_in_category',
+                channel: 'categories',
+                title: `Ny sak i ${cat}`,
+                body: issue.title,
+                url: `/sak/${issue.id}`,
+                data: { issueId: issue.id, category: cat, status: issue.status, date: issue.date },
+                origin,
+              });
+            })
+        );
+      }
     }
 
     const maxDate = fresh

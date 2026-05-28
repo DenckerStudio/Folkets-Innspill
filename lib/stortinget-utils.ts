@@ -1,4 +1,4 @@
-export type StortingetFormat = 'json' | 'xml';
+export type StortingetFormat = 'json' | 'xml' | 'html';
 
 export function stortingetUrl(pathname: string, query?: Record<string, string | number | boolean | undefined>): string {
   const url = new URL(`https://data.stortinget.no${pathname}`);

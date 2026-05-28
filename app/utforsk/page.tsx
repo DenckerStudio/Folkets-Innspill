@@ -17,6 +17,7 @@ export default function ExplorePage() {
   const [selectedCategory, setSelectedCategory] = useState('Alle kategorier');
   const [selectedStatus, setSelectedStatus] = useState('Alle statuser');
   const [sortBy, setSortBy] = useState('Nyeste først');
+  const [plannedDates, setPlannedDates] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -26,6 +27,12 @@ export default function ExplorePage() {
         setLoading(false);
       }
     });
+    fetch('/api/moter?planned=1')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.plannedDates) setPlannedDates(data.plannedDates);
+      })
+      .catch(() => {});
     return () => {
       isMounted = false;
     };
@@ -33,7 +40,12 @@ export default function ExplorePage() {
 
   // Dynamically extract unique categories from the fetched issues
   const categories = useMemo(() => {
-    const cats = new Set(issues.map(issue => issue.category));
+    const cats = new Set<string>();
+    for (const issue of issues) {
+      for (const c of issue.categories || [issue.category]) {
+        if (c) cats.add(c);
+      }
+    }
     return Array.from(cats).sort();
   }, [issues]);
 
@@ -42,7 +54,9 @@ export default function ExplorePage() {
 
   // 1. Apply category filter
   if (selectedCategory !== 'Alle kategorier') {
-    displayedIssues = displayedIssues.filter(issue => issue.category === selectedCategory);
+    displayedIssues = displayedIssues.filter((issue) =>
+      (issue.categories || [issue.category]).includes(selectedCategory)
+    );
   }
 
   // 1.5 Apply status filter
@@ -69,7 +83,10 @@ export default function ExplorePage() {
     } else if (sortBy === 'Mest engasjement') {
       return b.votes.total - a.votes.total;
     } else if (sortBy === 'Snart votering') {
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
+      return (
+        new Date(plannedDates[a.id] || '9999-12-31').getTime() -
+        new Date(plannedDates[b.id] || '9999-12-31').getTime()
+      );
     }
     return 0;
   });
@@ -182,7 +199,11 @@ export default function ExplorePage() {
                       {issue.status === 'closed' ? 'Ferdigbehandlet' : 'Åpen for stemmer'}
                     </span>
                   </div>
-                  <span className="text-sm text-gray-500">Votering: {issue.date}</span>
+                  <span className="text-sm text-gray-500">
+                    {plannedDates[issue.id]
+                      ? `Planlagt: ${plannedDates[issue.id]}`
+                      : `Oppdatert: ${issue.date}`}
+                  </span>
                 </div>
                 
                 <h2 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">{issue.title}</h2>

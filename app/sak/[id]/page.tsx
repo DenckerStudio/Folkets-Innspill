@@ -8,6 +8,7 @@ import ShareButton from './share-button';
 import FadeIn from '@/components/fade-in';
 import ExpandableText from './expandable-text';
 import VotingSection from './voting-section';
+import StortingetVoteringer from './stortinget-voteringer';
 import Image from 'next/image';
 import { getPersonbildeUrl } from '@/lib/stortinget-utils';
 import { headers } from 'next/headers';
@@ -439,6 +440,10 @@ export default async function SakPage({ params }: { params: Promise<{ id: string
 
       <FadeIn delay={0.4} direction="up">
         <PoliticianResponseForm sakId={sak.id} />
+      </FadeIn>
+
+      <FadeIn delay={0.45} direction="up">
+        <StortingetVoteringer sakId={sak.id} />
       </FadeIn>
 
       <FadeIn delay={0.5} direction="up">

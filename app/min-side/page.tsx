@@ -5,6 +5,7 @@ import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn } from 
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import ValgomatPanel from './valgomat-panel';
 
 function MinSideContent() {
   const searchParams = useSearchParams();
@@ -14,6 +15,7 @@ function MinSideContent() {
   const [voteHistory, setVoteHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [interestCategories, setInterestCategories] = useState<string[]>([]);
+  const [emneOptions, setEmneOptions] = useState<string[]>([]);
   const [categoriesSaving, setCategoriesSaving] = useState(false);
   const [notifEmailEnabled, setNotifEmailEnabled] = useState(true);
   const [notifFreq, setNotifFreq] = useState<Record<string, string>>({
@@ -50,6 +52,21 @@ function MinSideContent() {
 
   useEffect(() => {
     if (!user) return;
+    fetch('/api/emner')
+      .then((res) => res.json())
+      .then((json) => {
+        const emner = Array.isArray(json.emner) ? json.emner : [];
+        const labels = emner
+          .filter((e: { er_hovedemne?: boolean }) => e.er_hovedemne)
+          .map((e: { navn: string }) => {
+            const n = e.navn.toLowerCase();
+            return n.charAt(0).toUpperCase() + n.slice(1);
+          })
+          .sort((a: string, b: string) => a.localeCompare(b, 'no'));
+        if (labels.length > 0) setEmneOptions(labels);
+      })
+      .catch(() => {});
+
     fetch('/api/notifications/categories', { cache: 'no-store' })
       .then((res) => res.json())
       .then((json) => {
@@ -209,12 +226,7 @@ function MinSideContent() {
                   </Link>
                 </div>
               ) : (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
-                  <h4 className="font-bold text-indigo-900 mb-2">Slik fungerer det</h4>
-                  <p className="text-sm text-indigo-800">
-                    Valgomat 2.0 er ikke basert på hva partiene <em>sier</em> i partiprogrammet sitt, men hva de <em>faktisk stemmer</em> i Stortingssalen. Hver gang du stemmer &quot;For&quot; eller &quot;Mot&quot; på en sak i appen, sammenlignes din stemme med det endelige voteringresultatet for hvert parti.
-                  </p>
-                </div>
+                <ValgomatPanel />
               )}
             </div>
           )}
@@ -225,7 +237,10 @@ function MinSideContent() {
               <p className="text-sm text-gray-500">Velg hvilke saksområder du ønsker å følge ekstra nøye med på.</p>
               
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                {['Helse og omsorg', 'Energi og miljø', 'Utdanning og forskning', 'Transport', 'Næring', 'Justis'].map((cat) => (
+                {(emneOptions.length > 0
+                  ? emneOptions
+                  : ['Helse og omsorg', 'Energi og miljø', 'Utdanning og forskning', 'Transport', 'Næring', 'Justis']
+                ).map((cat) => (
                   <label key={cat} className="relative flex items-start py-4 px-4 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
                     <div className="min-w-0 flex-1 text-sm">
                       <span className="font-medium text-gray-900">{cat}</span>

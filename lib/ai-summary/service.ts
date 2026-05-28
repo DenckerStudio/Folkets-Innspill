@@ -1,23 +1,19 @@
 import { getServiceSupabase } from '@/lib/supabase';
 import { getSak } from '@/lib/stortinget';
+import { cardsAreRepetitive, isLowValueCard } from './card-quality';
 import { buildSakContextText, fetchDetailedSak, hashSakContext } from './context';
-import {
-  buildFieldStatusMap,
-  iterateAndApproveSummaries,
-} from './validator';
+import { runCardsApprovalPipeline } from './pipeline';
 import type {
-  CachedFieldsResult,
-  FieldStatus,
-  FieldValidationResult,
+  CachedCardsResult,
+  CardStatus,
+  CardValidationResult,
   SakContext,
-  SummaryCards,
-  SummaryField,
+  StoredCardsPayload,
+  SummaryCard,
 } from './types';
 import {
-  allSummaryFieldsApproved,
-  FIELD_APPROVED_AT_COLUMN,
-  missingSummaryFields,
-  SUMMARY_FIELDS,
+  allCardsApproved,
+  pendingCardIds,
 } from './types';
 
 function supabaseConfigured(): boolean {
@@ -41,99 +37,79 @@ export async function buildSakContext(issueId: string): Promise<SakContext | nul
   };
 }
 
-type DbSummaryRow = {
-  hva: string | null;
-  hvem: string | null;
-  kostnad: string | null;
+type DbCardsRow = {
+  cards_json: StoredCardsPayload | null;
   context_hash: string;
-  hva_approved_at: string | null;
-  hvem_approved_at: string | null;
-  kostnad_approved_at: string | null;
+  cards_approved_at: string | null;
 };
 
-function parseApprovedFields(row: DbSummaryRow, contextHash: string): CachedFieldsResult {
-  if (row.context_hash !== contextHash) {
-    return { summaries: {}, approvedFields: [], contextHash: null };
+function parseStoredCards(
+  row: DbCardsRow,
+  contextHash: string
+): CachedCardsResult {
+  if (row.context_hash !== contextHash || !row.cards_json?.cards?.length) {
+    return { cards: [], approvedCardIds: [], contextHash: null };
   }
 
-  const summaries: Partial<SummaryCards> = {};
-  const approvedFields: SummaryField[] = [];
-
-  for (const field of SUMMARY_FIELDS) {
-    const approvedAt = row[FIELD_APPROVED_AT_COLUMN[field]];
-    const text = row[field]?.trim();
-    if (approvedAt && text) {
-      summaries[field] = text;
-      approvedFields.push(field);
-    }
-  }
-
-  return { summaries, approvedFields, contextHash: row.context_hash };
+  return {
+    cards: row.cards_json.cards,
+    approvedCardIds: row.cards_json.approvedCardIds ?? [],
+    contextHash: row.context_hash,
+  };
 }
 
-export async function getCachedFields(
+export async function getCachedCards(
   issueId: string,
   contextHash: string
-): Promise<CachedFieldsResult> {
+): Promise<CachedCardsResult> {
   if (!supabaseConfigured()) {
-    return { summaries: {}, approvedFields: [], contextHash: null };
+    return { cards: [], approvedCardIds: [], contextHash: null };
   }
 
   try {
     const supabase = getServiceSupabase();
     const { data, error } = await supabase
       .from('issue_ai_summaries')
-      .select(
-        'hva, hvem, kostnad, context_hash, hva_approved_at, hvem_approved_at, kostnad_approved_at'
-      )
+      .select('cards_json, context_hash, cards_approved_at')
       .eq('stortinget_issue_id', issueId)
       .maybeSingle();
 
     if (error || !data) {
-      return { summaries: {}, approvedFields: [], contextHash: null };
+      return { cards: [], approvedCardIds: [], contextHash: null };
     }
 
-    return parseApprovedFields(data as DbSummaryRow, contextHash);
+    const parsed = parseStoredCards(data as DbCardsRow, contextHash);
+    if (parsed.cards.length > 0) {
+      return parsed;
+    }
+
+    return { cards: [], approvedCardIds: [], contextHash: null };
   } catch (e) {
-    console.error('[ai-summary] Kunne ikke hente cache:', e);
-    return { summaries: {}, approvedFields: [], contextHash: null };
+    console.error('[ai-summary] Kunne ikke hente kort-cache:', e);
+    return { cards: [], approvedCardIds: [], contextHash: null };
   }
 }
 
-export async function saveApprovedField(
+export async function saveCardsProgress(
   issueId: string,
-  field: SummaryField,
-  text: string,
+  payload: StoredCardsPayload,
   contextHash: string,
-  allFieldsNowApproved: boolean
+  fullyApproved: boolean
 ): Promise<void> {
   if (!supabaseConfigured()) return;
 
   const supabase = getServiceSupabase();
   const now = new Date().toISOString();
-  const approvedCol = FIELD_APPROVED_AT_COLUMN[field];
 
-  const { data: existing } = await supabase
-    .from('issue_ai_summaries')
-    .select('hva, hvem, kostnad, hva_approved_at, hvem_approved_at, kostnad_approved_at, context_hash')
-    .eq('stortinget_issue_id', issueId)
-    .maybeSingle();
-
-  const row: Record<string, string | null> = {
+  const row: Record<string, unknown> = {
     stortinget_issue_id: issueId,
     context_hash: contextHash,
-    hva: existing?.hva ?? null,
-    hvem: existing?.hvem ?? null,
-    kostnad: existing?.kostnad ?? null,
-    hva_approved_at: existing?.hva_approved_at ?? null,
-    hvem_approved_at: existing?.hvem_approved_at ?? null,
-    kostnad_approved_at: existing?.kostnad_approved_at ?? null,
+    cards_json: payload,
     updated_at: now,
-    [field]: text,
-    [approvedCol]: now,
   };
 
-  if (allFieldsNowApproved) {
+  if (fullyApproved) {
+    row.cards_approved_at = now;
     row.approved_at = now;
   }
 
@@ -142,33 +118,20 @@ export async function saveApprovedField(
   });
 
   if (error) {
-    console.error(`[ai-summary] Kunne ikke lagre godkjent felt "${field}":`, error);
+    console.error('[ai-summary] Kunne ikke lagre kort:', error);
     return;
   }
 
-  if (allFieldsNowApproved) {
-    const summaries: SummaryCards = { hva: '', hvem: '', kostnad: '' };
-    const { data } = await supabase
-      .from('issue_ai_summaries')
-      .select('hva, hvem, kostnad')
-      .eq('stortinget_issue_id', issueId)
-      .maybeSingle();
-
-    if (data?.hva && data?.hvem && data?.kostnad) {
-      summaries.hva = data.hva;
-      summaries.hvem = data.hvem;
-      summaries.kostnad = data.kostnad;
-
-      await supabase.from('stortinget_issues').upsert(
-        {
-          id: issueId,
-          ai_summary_json: summaries,
-          ai_summary_generated_at: now,
-          last_synced_at: now,
-        },
-        { onConflict: 'id' }
-      );
-    }
+  if (fullyApproved) {
+    await supabase.from('stortinget_issues').upsert(
+      {
+        id: issueId,
+        ai_summary_json: { cards: payload.cards },
+        ai_summary_generated_at: now,
+        last_synced_at: now,
+      },
+      { onConflict: 'id' }
+    );
   }
 }
 
@@ -180,86 +143,114 @@ export async function clearSummaryCache(issueId: string): Promise<void> {
 }
 
 export interface AiSummaryResponse {
-  hva?: string;
-  hvem?: string;
-  kostnad?: string;
+  cards: SummaryCard[];
   cached: boolean;
   allApproved: boolean;
-  pendingFields: SummaryField[];
-  fields: Record<SummaryField, FieldStatus>;
+  pendingCardIds: string[];
+  cardStatus: Record<string, CardStatus>;
+}
+
+function buildCardStatusMap(
+  cards: SummaryCard[],
+  approvedCardIds: string[],
+  validations: CardValidationResult[]
+): Record<string, CardStatus> {
+  const latest = new Map<string, CardValidationResult>();
+  for (const v of validations) {
+    latest.set(v.cardId, v);
+  }
+
+  const approved = new Set(approvedCardIds);
+  const status: Record<string, CardStatus> = {};
+
+  for (const card of cards) {
+    const v = latest.get(card.id);
+    const isApproved = approved.has(card.id) || v?.approved === true;
+    status[card.id] = {
+      approved: isApproved,
+      score: v?.score,
+      feedback: isApproved ? undefined : v?.feedback,
+      lastAttempt: isApproved ? undefined : card.body,
+    };
+  }
+
+  return status;
 }
 
 function buildResponse(
-  summaries: Partial<SummaryCards>,
-  approvedFields: SummaryField[],
+  cards: SummaryCard[],
+  approvedCardIds: string[],
   cached: boolean,
-  validations: FieldValidationResult[]
+  validations: CardValidationResult[]
 ): AiSummaryResponse {
-  const fields = buildFieldStatusMap(validations, approvedFields);
-  const pendingFields = missingSummaryFields(summaries, approvedFields);
-  const approvedOnly: Partial<SummaryCards> = {};
-
-  for (const field of approvedFields) {
-    const text = summaries[field]?.trim();
-    if (text) approvedOnly[field] = text;
-  }
+  const allApproved = allCardsApproved(cards, approvedCardIds);
 
   return {
-    ...(approvedOnly.hva ? { hva: approvedOnly.hva } : {}),
-    ...(approvedOnly.hvem ? { hvem: approvedOnly.hvem } : {}),
-    ...(approvedOnly.kostnad ? { kostnad: approvedOnly.kostnad } : {}),
+    cards,
     cached,
-    allApproved: allSummaryFieldsApproved(approvedFields),
-    pendingFields,
-    fields,
+    allApproved,
+    pendingCardIds: pendingCardIds(cards, approvedCardIds),
+    cardStatus: buildCardStatusMap(cards, approvedCardIds, validations),
   };
 }
 
-async function runApprovalPipeline(
+async function runPipeline(
   ctx: SakContext,
-  cached: CachedFieldsResult
+  cached: CachedCardsResult
 ): Promise<AiSummaryResponse> {
   const contextHash = hashSakContext(ctx);
-  let approvedFields = [...cached.approvedFields];
-  let summaries: Partial<SummaryCards> = { ...cached.summaries };
 
-  const pending = missingSummaryFields(summaries, approvedFields);
-  if (pending.length === 0) {
-    return buildResponse(summaries, approvedFields, true, []);
+  const cacheIsComplete =
+    cached.cards.length > 0 &&
+    allCardsApproved(cached.cards, cached.approvedCardIds);
+  const cacheHasLowValue =
+    cached.cards.some((c) => isLowValueCard(c, cached.cards)) ||
+    cardsAreRepetitive(cached.cards);
+
+  if (cacheIsComplete && !cacheHasLowValue) {
+    return buildResponse(cached.cards, cached.approvedCardIds, true, []);
   }
 
-  const approvedSet = new Set(approvedFields);
+  let cards = [...cached.cards];
+  let approvedCardIds = cacheHasLowValue
+    ? cached.approvedCardIds.filter(
+        (id) =>
+          !cached.cards.some((c) => c.id === id && isLowValueCard(c, cached.cards))
+      )
+    : [...cached.approvedCardIds];
 
-  const { summaries: finalSummaries, validations, newlyApprovedFields } =
-    await iterateAndApproveSummaries(ctx, {
-      initial: summaries,
-      approvedFields,
-      fieldsToProcess: pending,
-      onFieldApproved: async (field, value) => {
-        approvedSet.add(field);
-        summaries[field] = value;
-        await saveApprovedField(
+  const { cards: finalCards, validations, approvedCardIds: finalApproved } =
+    await runCardsApprovalPipeline(ctx, {
+      initialCards: cards.length ? cards : undefined,
+      approvedCardIds,
+      onCardApproved: async (card) => {
+        if (!approvedCardIds.includes(card.id)) {
+          approvedCardIds.push(card.id);
+        }
+        const idx = cards.findIndex((c) => c.id === card.id);
+        if (idx >= 0) cards[idx] = card;
+        else cards.push(card);
+
+        await saveCardsProgress(
           ctx.issueId,
-          field,
-          value,
+          { cards, approvedCardIds },
           contextHash,
-          allSummaryFieldsApproved(Array.from(approvedSet))
+          allCardsApproved(cards, approvedCardIds)
         );
       },
     });
 
-  summaries = finalSummaries;
-  approvedFields = [
-    ...new Set([...approvedFields, ...newlyApprovedFields]),
-  ];
+  cards = finalCards;
+  approvedCardIds = finalApproved;
 
-  for (const v of validations) {
-    if (v.approved && !approvedFields.includes(v.field)) {
-      approvedFields.push(v.field);
-    }
-  }
+  await saveCardsProgress(
+    ctx.issueId,
+    { cards, approvedCardIds },
+    contextHash,
+    allCardsApproved(cards, approvedCardIds)
+  );
 
-  return buildResponse(summaries, approvedFields, false, validations);
+  return buildResponse(cards, approvedCardIds, false, validations);
 }
 
 export async function getOrCreateApprovedAiSummary(
@@ -269,16 +260,22 @@ export async function getOrCreateApprovedAiSummary(
   if (!ctx) return null;
 
   const contextHash = hashSakContext(ctx);
-  const cached = await getCachedFields(issueId, contextHash);
+  const cached = await getCachedCards(issueId, contextHash);
 
-  if (allSummaryFieldsApproved(cached.approvedFields)) {
-    return buildResponse(cached.summaries, cached.approvedFields, true, []);
+  const cacheIsComplete =
+    cached.cards.length > 0 &&
+    allCardsApproved(cached.cards, cached.approvedCardIds);
+  const cacheHasLowValue =
+    cached.cards.some((c) => isLowValueCard(c, cached.cards)) ||
+    cardsAreRepetitive(cached.cards);
+
+  if (cacheIsComplete && !cacheHasLowValue) {
+    return buildResponse(cached.cards, cached.approvedCardIds, true, []);
   }
 
-  return runApprovalPipeline(ctx, cached);
+  return runPipeline(ctx, cached);
 }
 
-/** For testing / tvungen regenerering */
 export async function regenerateAiSummary(
   issueId: string
 ): Promise<AiSummaryResponse | null> {
@@ -286,15 +283,7 @@ export async function regenerateAiSummary(
   if (!ctx) return null;
 
   await clearSummaryCache(issueId);
-
-  const contextHash = hashSakContext(ctx);
-  const emptyCache: CachedFieldsResult = {
-    summaries: {},
-    approvedFields: [],
-    contextHash: null,
-  };
-
-  return runApprovalPipeline(ctx, emptyCache);
+  return runPipeline(ctx, { cards: [], approvedCardIds: [], contextHash: null });
 }
 
 export { buildSakContextText };

@@ -1,133 +1,171 @@
-import type { SummaryField, SummaryCards } from './types';
-
-const FIELD_GUIDANCE: Record<SummaryField, string> = {
-  hva: `Felt "hva" – hva saken handler om:
-- Identifiser sakstype (f.eks. lovendring, budsjett, høring, stortingsmelding) hvis det fremgår av kilden.
-- Forklar hovedforslaget, innstillingen eller vedtaket i 2–3 korte setninger.
-- Ta utgangspunkt i tittel, innstillingstekst og vedtakstekst.
-- Unngå vage åpninger som bare sier «saken handler om …» uten konkret innhold.
-- Ikke partipolitisk vinkling. Maks 3 setninger, maks ca. 350 tegn.`,
-  hvem: `Felt "hvem" – hvem som påvirkes:
-- Nevn minst én konkret gruppe som fremgår av kilden (borgere, næringer, kommuner, etater, bransjer).
-- Skill mellom direkte og indirekte berørte når kilden gjør det.
-- Hvis kilden ikke nevner konkrete grupper: skriv eksplisitt at ingen spesifikke grupper er nevnt.
-- Ikke finn på grupper som ikke står i saken. Maks 3 setninger, maks ca. 350 tegn.`,
-  kostnad: `Felt "kostnad" – økonomiske konsekvenser:
-- Bruk ett av disse mønstrene der det passer:
-  • «Beløp: …» når tall står eksplisitt i kilden.
-  • «Økonomisk effekt omtalt uten konkrete beløp» når kostnad nevnes uten tall.
-  • «Ingen kostnader omtalt i kilden» når økonomi ikke er dekket.
-- Nevn hvem som bærer kostnaden (stat, kommune, næring, innbyggere) når det fremgår.
-- Ikke estimer eller finn på kroner eller prosenter. Maks 3 setninger, maks ca. 350 tegn.`,
-};
+import { SUMMARY_CARD_ROLES } from './card-roles';
+import type { SakContext, SummaryCard } from './types';
 
 const LANGUAGE_RULES = `SPRÅK (obligatorisk):
-- Skriv utelukkende på norsk (bokmål).
-- Bruk korte, tydelige setninger og vanlige ord. Forklar faguttrykk første gang.
-- Vær saklig og nøytral. Ikke ta stilling til om forslaget er bra eller dårlig.
-- Bygg kun på kilden. Ikke finn på tall, navn eller konsekvenser som ikke står der.
-- Pek på hvilken del av kilden informasjonen bygger på (innstilling, vedtak, kortvedtak) uten å sitere verbatim.`;
+- Skriv UTELUKKENDE på norsk (bokmål). Ingen engelske ord unødvendig.
+- Korte, tydelige setninger. Saklig og nøytral tone.
+- Bygg på kilden. Ikke finn på tall, navn eller konsekvenser som ikke står der.`;
 
-export function buildInitialGenerationPrompt(sakContextText: string): string {
-  return `Du er en nøytral, faktabasert assistent for «Folkets Stemme» som forenkler stortingssaker for vanlige borgere.
+const BANNED_GENERIC_TITLES = `FORBUDTE TITLER (bruk aldri som title):
+- «Hva saken gjelder», «Hvem som påvirkes», «Økonomiske konsekvenser», «Stortingssak» (alene)
+- Titler skal være korte og hentet fra sakens faktiske innhold.`;
+
+const CITIZEN_AND_DEPTH = `OBLIGATORISKE VINKLER (ett kort per vinkling):
+1. Hva saken handler om – konkret og utdypende (ikke bare gjenta tittelen).
+2. Hva det kan bety for en vanlig nordmann – direkte eller ærlig indirekte.
+3. Et annet faktum fra kilden (prosess, vedtak, detalj) uten å gjenta kort 1 og 2.`;
+
+function otherCardsBlock(otherCards: SummaryCard[]): string {
+  if (otherCards.length === 0) return '';
+  const lines = otherCards.map(
+    (c) => `- [${c.id}] ${c.title}: ${c.body.slice(0, 200)}…`
+  );
+  return `\nKORT SOM ALLEREDE ER SKREVET (ikke gjenta ordlyd eller poeng):\n${lines.join('\n')}\n`;
+}
+
+export function buildSingleRoleCardPrompt(
+  sakContextText: string,
+  ctx: SakContext,
+  roleIndex: number,
+  otherCards: SummaryCard[] = []
+): string {
+  const role = SUMMARY_CARD_ROLES[roleIndex];
+  if (!role) throw new Error(`Ugyldig kortrolle: ${roleIndex}`);
+
+  return `Du er en nøytral assistent for «Folkets Stemme» som forklarer stortingssaker for vanlige borgere.
 
 ${LANGUAGE_RULES}
 
-KILDE (stortingssak – bruk kun dette som grunnlag):
+${BANNED_GENERIC_TITLES}
+
+${ctx.sakTypeLabel ? `Sakstype: ${ctx.sakTypeLabel}` : ''}
+
+KILDE:
 ---
 ${sakContextText}
 ---
+${otherCardsBlock(otherCards)}
 
-Oppgave: Lag tre korte, uavhengige forklaringer. Hvert felt skal ha eget innhold – ikke gjenta samme setning på tvers av hva, hvem og kostnad.
+Oppgave – skriv ETT kort:
+- id: "${role.id}" (uendret)
+- title: kort saksspesifikk overskrift på norsk (3–8 ord)
+- hint: "${role.hint}"
+- body: 2–3 setninger, maks ca. 450 tegn
 
-${FIELD_GUIDANCE.hva}
+${role.instruction}
 
-${FIELD_GUIDANCE.hvem}
-
-${FIELD_GUIDANCE.kostnad}
-
-Svar KUN med gyldig JSON uten markdown:
-{"hva":"...","hvem":"...","kostnad":"..."}`;
+Svar med gyldig JSON: { "card": { "id", "title", "hint", "body" } }`;
 }
 
-export function buildFieldRegenerationPrompt(
-  field: SummaryField,
+export function buildDynamicCardsPrompt(
   sakContextText: string,
-  current: SummaryCards,
-  feedback: string,
-  missingAspects: string[]
+  ctx: SakContext,
+  compact = false
 ): string {
-  const missing =
-    missingAspects.length > 0
-      ? `\nAlt som har manglet i tidligere forsøk (må adresseres): ${missingAspects.join('; ')}`
-      : '';
+  const sakType = ctx.sakTypeLabel ? `Sakstype: ${ctx.sakTypeLabel}` : '';
+  const rolesList = SUMMARY_CARD_ROLES.map(
+    (r, i) => `${i + 1}. id="${r.id}" – ${r.instruction.split('\n')[0]}`
+  ).join('\n');
 
-  const otherFields = (['hva', 'hvem', 'kostnad'] as SummaryField[])
-    .filter((f) => f !== field)
-    .map((f) => `- ${f}: ${current[f]}`)
-    .join('\n');
+  return `Du er en nøytral assistent for «Folkets Stemme» som forklarer stortingssaker for vanlige borgere.
 
-  return `Du er en nøytral, faktabasert assistent for «Folkets Stemme».
+${LANGUAGE_RULES}
 
-KILDE (stortingssak):
----
-${sakContextText}
----
+${BANNED_GENERIC_TITLES}
 
-Godkjente felt (ikke endre disse):
-${otherFields}
+${CITIZEN_AND_DEPTH}
 
-Feltet "${field}" ble ikke godkjent.
-Tilbakemelding fra kvalitetskontroll: ${feedback}${missing}
-
-${FIELD_GUIDANCE[field]}
-
-Skriv kun på nytt feltet "${field}". Svar KUN med gyldig JSON:
-{"${field}":"..."}`;
-}
-
-export function buildValidationPrompt(
-  field: SummaryField,
-  sakContextText: string,
-  value: string
-): string {
-  const rubrics: Record<SummaryField, string> = {
-    hva: `Sjekkliste for "hva":
-- Nevner sakstype eller hovedinnhold fra kilden
-- Er faktabasert og konkret (ikke vag)
-- Dekker hovedforslag/innstilling/vedtak der det finnes i kilden
-- Maks 3 setninger, norsk bokmål, ingen hallusinerte fakta`,
-    hvem: `Sjekkliste for "hvem":
-- Nevner relevante berørte parter fra kilden ELLER sier tydelig at ingen spesifikke grupper er nevnt
-- Finner ikke opp nye grupper
-- Skill direkte/indirekte berørte hvis relevant
-- Maks 3 setninger, norsk bokmål`,
-    kostnad: `Sjekkliste for "kostnad":
-- Følger ett av mønstrene: Beløp / effekt uten tall / ingen kostnader omtalt
-- Tall kun hvis de står i kilden
-- Beskriver hvem som bærer kostnaden når kilden sier det
-- Maks 3 setninger, norsk bokmål, ingen estimater`,
-  };
-
-  return `Du er en streng kvalitetskontrollør for AI-sammendrag av stortingssaker.
+${sakType}
 
 KILDE:
 ---
 ${sakContextText}
 ---
 
-Felt som skal vurderes: "${field}"
-Tekst: "${value}"
+Lag ${compact ? 'nøyaktig 3' : '3'} kort med disse id-ene:
+${rolesList}
 
-${rubrics[field]}
+Regler:
+- Hvert kort må ha unik body – ikke gjenta samme setninger eller bare sakstittelen.
+- Kort "for-vanlige-folk" skal ALLTID forklare betydning for vanlige nordmenn.
+- Bruk konkrete ord fra kilden i hvert kort.
 
-Godkjenn KUN hvis teksten oppfyller sjekklisten og dekker det viktigste fra kilden for dette feltet.
+Svar med gyldig JSON som matcher skjemaet.`;
+}
 
-Svar KUN med gyldig JSON:
-{
-  "approved": true eller false,
-  "score": tall 0-100,
-  "feedback": "kort, konkret tilbakemelding på norsk hvis ikke godkjent",
-  "missingAspects": ["liste med det som mangler i forhold til kilden"]
-}`;
+export function buildSingleCardRegenerationPrompt(
+  sakContextText: string,
+  ctx: SakContext,
+  card: SummaryCard,
+  feedback: string,
+  missingAspects: string[],
+  suggestedRevision?: string,
+  otherCards: SummaryCard[] = []
+): string {
+  const missing =
+    missingAspects.length > 0
+      ? `\nMangler fra validering: ${missingAspects.join('; ')}`
+      : '';
+  const revision = suggestedRevision?.trim()
+    ? `\nForslag til forbedring: ${suggestedRevision}`
+    : '';
+  const role = SUMMARY_CARD_ROLES.find((r) => r.id === card.id);
+  const roleHint = role
+    ? `\nKortets rolle: ${role.instruction}`
+    : card.id === 'for-vanlige-folk'
+      ? '\nForklar betydning for vanlige nordmenn.'
+      : '';
+
+  return `Du skriver på nytt ETT oppsummeringskort for en stortingssak.
+
+${LANGUAGE_RULES}
+
+${BANNED_GENERIC_TITLES}
+
+${ctx.sakTypeLabel ? `Sakstype: ${ctx.sakTypeLabel}` : ''}
+
+KILDE:
+---
+${sakContextText}
+---
+${otherCardsBlock(otherCards)}
+
+Kort som feilet (id beholdes: "${card.id}"):
+Tittel: ${card.title}
+Tekst: ${card.body}
+
+Tilbakemelding: ${feedback}${missing}${revision}${roleHint}
+
+Skriv kun dette kortet på nytt. Ikke gjenta andre kort. body skal være utdypende og faktabasert.`;
+}
+
+export function buildCardValidationPrompt(
+  sakContextText: string,
+  _ctx: SakContext,
+  card: SummaryCard,
+  otherCards: SummaryCard[] = []
+): string {
+  return `Du er kvalitetskontrollør for AI-oppsummering av stortingssaker.
+
+${LANGUAGE_RULES}
+
+KILDE:
+---
+${sakContextText}
+---
+${otherCardsBlock(otherCards)}
+
+Kort:
+- id: ${card.id}
+- title: ${card.title}
+- body: ${card.body}
+
+Sjekkliste – godkjenn KUN hvis alt er oppfylt:
+- body er utdypende og ikke bare en gjentakelse av sakstittelen
+- id "for-vanlige-folk" må forklare betydning for vanlige nordmenn (direkte eller ærlig indirekte)
+- body overlapper ikke vesentlig med andre kort (ulike aspekter)
+- Konkrete fakta fra kilden der det er mulig
+- score under 70 hvis generisk, repetitiv eller for tynn
+
+Svar med JSON.`;
 }

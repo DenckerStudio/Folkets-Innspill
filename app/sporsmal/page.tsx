@@ -1,6 +1,7 @@
 import FadeIn from '@/components/fade-in';
 import { STORTINGET_ACTIVE_SESSION_ID } from '@/lib/stortinget-config';
 import { headers } from 'next/headers';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export default async function SporsmalPage({
       ? sp.type
       : 'skriftligesporsmal';
   const sesjonId = sp.sesjonId || STORTINGET_ACTIVE_SESSION_ID;
-  const status = sp.status || '';
+  const status = sp.status || 'alle';
 
   const qs = new URLSearchParams({ type, sesjonId });
   if (status) qs.set('status', status);
@@ -91,7 +92,11 @@ export default async function SporsmalPage({
           </div>
           <div className="divide-y divide-gray-100">
             {data.sporsmal.slice(0, 200).map((q, idx) => (
-              <div key={q.id ?? idx} className="px-6 py-4">
+              <Link
+                key={q.id ?? idx}
+                href={q.id ? `/sporsmal/${q.id}` : '#'}
+                className="block px-6 py-4 hover:bg-gray-50 transition-colors"
+              >
                 <div className="text-sm font-semibold text-gray-900">{q.tittel || q.sporsmal || `Spørsmål ${q.id ?? ''}`}</div>
                 <div className="mt-1 text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
                   {q.id && <span className="font-mono">id={q.id}</span>}
@@ -99,7 +104,7 @@ export default async function SporsmalPage({
                   {q.status && <span>status={q.status}</span>}
                   {q.sendt_dato && <span>sendt={String(q.sendt_dato).slice(0, 10)}</span>}
                 </div>
-              </div>
+              </Link>
             ))}
             {data.sporsmal.length > 200 && (
               <div className="px-6 py-4 text-xs text-gray-500">Viser første 200 for ytelse.</div>

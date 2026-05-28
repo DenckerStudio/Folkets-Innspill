@@ -6,7 +6,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LogIn } from 'lucide-react';
 
-export default function HearingCommentForm({ hearingId, isOpen }: { hearingId: string; isOpen: boolean }) {
+export default function HearingCommentForm({
+  stortingetHoringId,
+  isOpen,
+}: {
+  stortingetHoringId: string;
+  isOpen: boolean;
+}) {
   const [body, setBody] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -31,7 +37,7 @@ export default function HearingCommentForm({ hearingId, isOpen }: { hearingId: s
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          hearing_id: hearingId,
+          stortinget_horing_id: stortingetHoringId,
           body: body.trim(),
         }),
       });
@@ -43,6 +49,7 @@ export default function HearingCommentForm({ hearingId, isOpen }: { hearingId: s
       }
 
       setBody('');
+      window.dispatchEvent(new Event('hearing-comment-posted'));
       router.refresh();
     } catch (e) {
       setError('En feil oppstod');
