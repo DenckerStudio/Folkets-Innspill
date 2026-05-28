@@ -1,7 +1,29 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase';
+import { getSakDetail } from '@/lib/stortinget';
 
 export const dynamic = 'force-dynamic';
+
+const MAX_SOURCE_CHARS = 8000;
+
+function buildPromptSource(input: {
+  title?: string | null;
+  summary?: string | null;
+  detail?: any | null;
+}): { title: string; description: string } {
+  const title = input.title || input.detail?.korttittel || input.detail?.tittel || 'Ukjent sak';
+
+  const parts: string[] = [];
+  if (input.summary) parts.push(input.summary);
+  if (input.detail?.tittel && input.detail.tittel !== input.summary) parts.push(input.detail.tittel);
+  if (input.detail?.innstillingstekst) parts.push(input.detail.innstillingstekst);
+  if (input.detail?.kortvedtak) parts.push(input.detail.kortvedtak);
+  if (input.detail?.vedtakstekst) parts.push(input.detail.vedtakstekst);
+  if (input.detail?.parentestekst) parts.push(input.detail.parentestekst);
+
+  const description = (parts.filter(Boolean).join('\n\n') || title).slice(0, MAX_SOURCE_CHARS);
+  return { title, description };
+}
 
 async function generateSummary(
   title: string,
@@ -21,32 +43,23 @@ Svar på norsk.`;
   const ollamaUrl = process.env.NEXT_PUBLIC_OLLAMA_URL;
   let responseText = '{}';
 
-  if (ollamaUrl) {
-    const res = await fetch(`${ollamaUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'llama3',
-        prompt: systemPrompt,
-        stream: false,
-        format: 'json',
-      }),
-    });
-    if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`);
-    const jsonRes = await res.json();
-    responseText = jsonRes.response || '{}';
-  } else if (process.env.GEMINI_API_KEY) {
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: systemPrompt,
-      config: { responseMimeType: 'application/json' },
-    });
-    responseText = response.text || '{}';
-  } else {
-    throw new Error('No AI provider configured');
+  if (!ollamaUrl) {
+    throw new Error('Ollama not configured (NEXT_PUBLIC_OLLAMA_URL missing)');
   }
+
+  const res = await fetch(`${ollamaUrl}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.NEXT_PUBLIC_OLLAMA_MODEL || 'llama3',
+      prompt: systemPrompt,
+      stream: false,
+      format: 'json',
+    }),
+  });
+  if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`);
+  const jsonRes = await res.json();
+  responseText = jsonRes.response || '{}';
 
   if (responseText.startsWith('```json')) {
     responseText = responseText.replace(/```json\n?/, '').replace(/```$/, '');
@@ -68,7 +81,7 @@ export async function GET(
     .from('stortinget_issues')
     .select('ai_summary_json, ai_summary_generated_at, title, summary')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (cached?.ai_summary_json) {
     return NextResponse.json({
@@ -78,19 +91,24 @@ export async function GET(
     });
   }
 
-  const title = cached?.title || `Sak ${id}`;
-  const description = cached?.summary || title;
+  const detail = await getSakDetail(id).catch(() => null);
+  const { title, description } = buildPromptSource({ title: cached?.title, summary: cached?.summary, detail });
 
   try {
     const summary = await generateSummary(title, description);
 
-    await service
-      .from('stortinget_issues')
-      .update({
+    await service.from('stortinget_issues').upsert(
+      {
+        id,
+        title,
+        summary: cached?.summary ?? (detail?.tittel || null),
+        detail_json: detail ?? null,
+        last_synced_at: new Date().toISOString(),
         ai_summary_json: summary,
         ai_summary_generated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+      },
+      { onConflict: 'id' }
+    );
 
     return NextResponse.json({ ...summary, cached: false });
   } catch (e) {
