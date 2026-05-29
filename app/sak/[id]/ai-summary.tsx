@@ -1,6 +1,6 @@
 'use client';
 
-import { ShieldCheck, BrainCircuit, Users, Coins, Info } from 'lucide-react';
+import { ShieldCheck, BrainCircuit, Users, Coins } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 
@@ -9,6 +9,24 @@ interface SummaryData {
   hvem: string;
   kostnad: string;
   cached?: boolean;
+}
+
+function NorwegianFlagIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 12"
+      width={14}
+      height={10}
+      aria-hidden
+    >
+      <rect width="16" height="12" fill="#BA0C2F" />
+      <rect x="4" width="3" height="12" fill="#fff" />
+      <rect y="4" width="16" height="3" fill="#fff" />
+      <rect x="4.5" width="2" height="12" fill="#00205B" />
+      <rect y="4.5" width="16" height="2" fill="#00205B" />
+    </svg>
+  );
 }
 
 export default function AiSummary({
@@ -134,9 +152,9 @@ export default function AiSummary({
           {data.cached && (
             <span className="text-xs text-gray-500 hidden sm:inline">Lagret sammendrag</span>
           )}
-          <span className="text-xs text-gray-400 flex items-center">
-            <Info className="w-3 h-3 mr-1" />
-            Generert av n8n
+          <span className="text-xs text-gray-400 flex items-center gap-1">
+            <NorwegianFlagIcon className="shrink-0 rounded-[1px] shadow-sm" />
+            Generert av AI
           </span>
         </div>
       </div>

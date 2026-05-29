@@ -2,9 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
+import { MobileNavDrawer } from '@/components/ui/mobile-nav-drawer';
 import { cn } from '@/lib/utils';
 import {
   NavigationMenu,
@@ -55,8 +55,15 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
       return;
     }
     document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+
     return () => {
       document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [enableMobileMenu, open]);
 
@@ -197,121 +204,26 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
             size="icon"
             variant="outline"
             onClick={() => setOpen(!open)}
-            className="lg:hidden"
+            className="lg:hidden text-foreground"
             aria-expanded={open}
             aria-controls="mobile-menu"
-            aria-label="Åpne meny"
+            aria-label={open ? 'Lukk meny' : 'Åpne meny'}
           >
             <MenuToggleIcon open={open} className="size-5" duration={300} />
           </Button>
         ) : null}
       </nav>
       {enableMobileMenu ? (
-        <MobileMenu open={open} className="flex flex-col justify-between gap-4 overflow-y-auto">
-          <div className="flex w-full flex-col gap-y-4">
-            <MobileNavSection title="Utforsk" links={utforskLinks} onNavigate={() => setOpen(false)} />
-            <MobileNavSection title="Delta" links={deltaLinks} onNavigate={() => setOpen(false)} />
-            <MobileNavSection title="Om" links={omLinks} onNavigate={() => setOpen(false)} />
-            <MobileNavSection title="Hurtiglenker" links={hurtiglenker} onNavigate={() => setOpen(false)} />
-          </div>
-          <div className="flex flex-col gap-2 pb-4">
-            {isLoggedIn ? (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full bg-transparent justify-between"
-                  render={<Link href="/varsler" onClick={() => setOpen(false)} />}
-                >
-                  Varsler
-                  {unreadCount > 0 ? (
-                    <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  ) : null}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full bg-transparent"
-                  render={<Link href="/min-side" onClick={() => setOpen(false)} />}
-                >
-                  Min side
-                </Button>
-                <Button className="w-full" onClick={handleSignOut}>
-                  Logg ut
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="w-full bg-transparent"
-                  render={<Link href="/auth/login" onClick={() => setOpen(false)} />}
-                >
-                  Logg inn
-                </Button>
-                <Button className="w-full" render={<Link href="/auth/login" onClick={() => setOpen(false)} />}>
-                  Kom i gang
-                </Button>
-              </>
-            )}
-          </div>
-        </MobileMenu>
+        <MobileNavDrawer
+          open={open}
+          onClose={() => setOpen(false)}
+          isLoggedIn={isLoggedIn}
+          displayName={displayName}
+          unreadCount={unreadCount}
+          onSignOut={handleSignOut}
+        />
       ) : null}
     </header>
-  );
-}
-
-type MobileMenuProps = React.ComponentProps<'div'> & {
-  open: boolean;
-};
-
-function MobileMenu({ open, children, className, ...props }: MobileMenuProps) {
-  if (!open || typeof window === 'undefined') return null;
-
-  return createPortal(
-    <div
-      id="mobile-menu"
-      className={cn(
-        'bg-background/95 supports-[backdrop-filter]:bg-background/50 backdrop-blur-lg',
-        'fixed top-16 right-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden border-y lg:hidden',
-      )}
-    >
-      <div
-        data-slot={open ? 'open' : 'closed'}
-        className={cn(
-          'data-[slot=open]:animate-in data-[slot=open]:zoom-in-97 ease-out',
-          'size-full p-4',
-          className,
-        )}
-        {...props}
-      >
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-function MobileNavSection({
-  title,
-  links,
-  onNavigate,
-}: {
-  title: string;
-  links: LinkItem[];
-  onNavigate: () => void;
-}) {
-  return (
-    <div>
-      <span className="text-muted-foreground mb-2 block text-sm font-medium">{title}</span>
-      <ul className="space-y-1">
-        {links.map((link) => (
-          <li key={link.href}>
-            <MobileListItem {...link} onNavigate={onNavigate} />
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 
@@ -324,34 +236,6 @@ function NavListItem({
   return (
     <Link
       href={href}
-      className={cn(
-        'w-full flex flex-row gap-x-2 rounded-sm p-2',
-        'hover:bg-accent hover:text-accent-foreground',
-        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-      )}
-    >
-      <div className="bg-background/40 flex aspect-square size-12 items-center justify-center rounded-md border shadow-sm">
-        <Icon className="text-foreground size-5" />
-      </div>
-      <div className="flex flex-col items-start justify-center">
-        <span className="font-medium">{title}</span>
-        {description ? <span className="text-muted-foreground text-xs">{description}</span> : null}
-      </div>
-    </Link>
-  );
-}
-
-function MobileListItem({
-  title,
-  description,
-  icon: Icon,
-  href,
-  onNavigate,
-}: LinkItem & { onNavigate?: () => void }) {
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
       className={cn(
         'w-full flex flex-row gap-x-2 rounded-sm p-2',
         'hover:bg-accent hover:text-accent-foreground',
