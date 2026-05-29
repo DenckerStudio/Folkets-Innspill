@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase';
 import { getSakDetail } from '@/lib/stortinget';
+import { triggerAiSummaryWebhook } from '@/lib/trigger-ai-summary-webhook';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,16 @@ async function fetchAndCacheDetail(sakId: string) {
       },
       { onConflict: 'id' }
     );
+
+    const { data: existingSummary } = await service
+      .from('issue_ai_summaries')
+      .select('stortinget_issue_id')
+      .eq('stortinget_issue_id', sakId)
+      .maybeSingle();
+
+    if (!existingSummary) {
+      triggerAiSummaryWebhook(sakId);
+    }
 
     return detail;
   } catch (e) {
