@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
-  getOrCreateApprovedAiSummary,
-  regenerateAiSummary,
+  deleteAiSummary,
+  resolveAiSummaryForApi,
 } from '@/lib/ai-summary/service';
+import { triggerAiSummaryWebhook } from '@/lib/trigger-ai-summary-webhook';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
 
 export async function GET(
   _request: Request,
@@ -17,27 +17,24 @@ export async function GET(
     return NextResponse.json({ error: 'Mangler saks-ID' }, { status: 400 });
   }
 
-  try {
-    const result = await getOrCreateApprovedAiSummary(id);
-    if (!result) {
-      return NextResponse.json({ error: 'Sak ikke funnet' }, { status: 404 });
-    }
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('[ai-summary] GET error:', error);
-    return NextResponse.json(
-      {
-        error: true,
-        hva: 'Kunne ikke generere sammendrag for øyeblikket.',
-        hvem: 'Ukjent',
-        kostnad: 'Ukjent',
-        cached: false,
-        allApproved: false,
-        retry_after_seconds: 10,
-      },
-      { status: 503 }
-    );
+  const result = await resolveAiSummaryForApi(id, { triggerIfMissing: true });
+
+  if (result.status === 'ready') {
+    return NextResponse.json({
+      hva: result.hva,
+      hvem: result.hvem,
+      kostnad: result.kostnad,
+      cached: result.cached,
+    });
   }
+
+  return NextResponse.json(
+    {
+      status: 'pending',
+      retry_after_seconds: result.retry_after_seconds,
+    },
+    { status: 202 }
+  );
 }
 
 export async function POST(
@@ -56,20 +53,15 @@ export async function POST(
     return GET(request, { params });
   }
 
-  try {
-    const result = await regenerateAiSummary(id);
-    if (!result) {
-      return NextResponse.json({ error: 'Sak ikke funnet' }, { status: 404 });
-    }
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('[ai-summary] POST regenerate error:', error);
-    return NextResponse.json(
-      {
-        error: true,
-        retry_after_seconds: 10,
-      },
-      { status: 503 }
-    );
-  }
+  await deleteAiSummary(id);
+  triggerAiSummaryWebhook(id);
+
+  return NextResponse.json(
+    {
+      status: 'pending',
+      retry_after_seconds: 15,
+      regenerated: true,
+    },
+    { status: 202 }
+  );
 }

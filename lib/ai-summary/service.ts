@@ -1,12 +1,6 @@
 import { getServiceSupabase } from '@/lib/supabase';
-import { getSak } from '@/lib/stortinget';
-import { buildSakContextText, fetchDetailedSak, hashSakContext } from './context';
-import {
-  allFieldsApproved,
-  generateInitialSummaries,
-  iterateAndApproveSummaries,
-} from './validator';
-import type { ApprovedSummaryRecord, SakContext, SummaryCards } from './types';
+import { triggerAiSummaryWebhook } from '@/lib/trigger-ai-summary-webhook';
+import type { SummaryCards } from './types';
 
 function supabaseConfigured(): boolean {
   return Boolean(
@@ -14,24 +8,8 @@ function supabaseConfigured(): boolean {
   );
 }
 
-export async function buildSakContext(issueId: string): Promise<SakContext | null> {
-  const sak = await getSak(issueId);
-  if (!sak) return null;
-
-  const detail = await fetchDetailedSak(issueId);
-
-  return {
-    issueId,
-    title: sak.title,
-    summary: sak.summary,
-    category: sak.category,
-    ...detail,
-  };
-}
-
-export async function getCachedSummary(
-  issueId: string,
-  contextHash: string
+export async function getAiSummaryFromDb(
+  issueId: string
 ): Promise<SummaryCards | null> {
   if (!supabaseConfigured()) return null;
 
@@ -39,119 +17,62 @@ export async function getCachedSummary(
     const supabase = getServiceSupabase();
     const { data, error } = await supabase
       .from('issue_ai_summaries')
-      .select('hva, hvem, kostnad, context_hash')
+      .select('hva, hvem, kostnad')
       .eq('stortinget_issue_id', issueId)
       .maybeSingle();
 
     if (error || !data) return null;
-    if (data.context_hash !== contextHash) return null;
 
-    return {
-      hva: data.hva,
-      hvem: data.hvem,
-      kostnad: data.kostnad,
-    };
+    const hva = data.hva?.trim();
+    const hvem = data.hvem?.trim();
+    const kostnad = data.kostnad?.trim();
+    if (!hva || !hvem || !kostnad) return null;
+
+    return { hva, hvem, kostnad };
   } catch (e) {
-    console.error('[ai-summary] Kunne ikke hente cache:', e);
+    console.error('[ai-summary] Kunne ikke hente sammendrag:', e);
     return null;
   }
 }
 
-export async function saveApprovedSummary(
-  issueId: string,
-  summaries: SummaryCards,
-  contextHash: string
-): Promise<void> {
+export async function deleteAiSummary(issueId: string): Promise<void> {
   if (!supabaseConfigured()) return;
 
   const supabase = getServiceSupabase();
-  const row: Omit<ApprovedSummaryRecord, 'approved_at'> = {
-    stortinget_issue_id: issueId,
-    hva: summaries.hva,
-    hvem: summaries.hvem,
-    kostnad: summaries.kostnad,
-    context_hash: contextHash,
-  };
-
-  const { error } = await supabase.from('issue_ai_summaries').upsert(
-    {
-      ...row,
-      approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'stortinget_issue_id' }
-  );
+  const { error } = await supabase
+    .from('issue_ai_summaries')
+    .delete()
+    .eq('stortinget_issue_id', issueId);
 
   if (error) {
-    console.error('[ai-summary] Kunne ikke lagre godkjent sammendrag:', error);
-    return;
+    console.error('[ai-summary] Kunne ikke slette sammendrag:', error);
   }
-
-  // Mirror into stortinget_issues for compatibility with main-branch consumers
-  await supabase.from('stortinget_issues').upsert(
-    {
-      id: issueId,
-      ai_summary_json: summaries,
-      ai_summary_generated_at: new Date().toISOString(),
-      last_synced_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' }
-  );
 }
 
-export interface AiSummaryResponse {
-  hva: string;
-  hvem: string;
-  kostnad: string;
-  cached: boolean;
-  allApproved: boolean;
-}
+export type AiSummaryReady = SummaryCards & {
+  status: 'ready';
+  cached: true;
+};
 
-export async function getOrCreateApprovedAiSummary(
-  issueId: string
-): Promise<AiSummaryResponse | null> {
-  const ctx = await buildSakContext(issueId);
-  if (!ctx) return null;
+export type AiSummaryPending = {
+  status: 'pending';
+  retry_after_seconds: number;
+};
 
-  const contextHash = hashSakContext(ctx);
-  const cached = await getCachedSummary(issueId, contextHash);
-  if (cached) {
-    return { ...cached, cached: true, allApproved: true };
+export type AiSummaryApiResult = AiSummaryReady | AiSummaryPending;
+
+export async function resolveAiSummaryForApi(
+  issueId: string,
+  options: { triggerIfMissing?: boolean } = {}
+): Promise<AiSummaryApiResult> {
+  const existing = await getAiSummaryFromDb(issueId);
+  if (existing) {
+    return { status: 'ready', ...existing, cached: true };
   }
 
-  const { summaries, validations } = await iterateAndApproveSummaries(ctx);
-  const allApproved = allFieldsApproved(validations);
-
-  if (allApproved) {
-    await saveApprovedSummary(issueId, summaries, contextHash);
+  if (options.triggerIfMissing) {
+    triggerAiSummaryWebhook(issueId);
   }
 
-  return {
-    ...summaries,
-    cached: false,
-    allApproved,
-  };
+  return { status: 'pending', retry_after_seconds: 15 };
 }
-
-/** For testing / tvungen regenerering */
-export async function regenerateAiSummary(issueId: string): Promise<AiSummaryResponse | null> {
-  const ctx = await buildSakContext(issueId);
-  if (!ctx) return null;
-
-  const initial = await generateInitialSummaries(ctx);
-  const { summaries, validations } = await iterateAndApproveSummaries(ctx, initial);
-  const contextHash = hashSakContext(ctx);
-  const allApproved = allFieldsApproved(validations);
-
-  if (allApproved) {
-    await saveApprovedSummary(issueId, summaries, contextHash);
-  }
-
-  return {
-    ...summaries,
-    cached: false,
-    allApproved,
-  };
-}
-
-export { buildSakContextText };

@@ -78,7 +78,7 @@ export const omLinks: SiteNavLinkItem[] = [
   },
 ];
 
-/** Hurtiglenker i dropdown */
+/** Hurtiglenker i dropdown (desktop) */
 export const hurtiglenker: SiteNavLinkItem[] = [
   { title: 'Dashboard', href: routes.dashboard, icon: Home },
   { title: 'Utforsk', href: routes.utforsk, icon: Search },
