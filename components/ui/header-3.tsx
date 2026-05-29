@@ -3,8 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
-import { MobileNavDrawer } from '@/components/ui/mobile-nav-drawer';
 import { cn } from '@/lib/utils';
 import {
   NavigationMenu,
@@ -23,16 +21,11 @@ import {
   type SiteNavLinkItem,
   utforskLinks,
 } from '@/lib/site-nav-links';
+import { routes } from '@/lib/routes';
 
 type LinkItem = SiteNavLinkItem;
 
-type HeaderProps = {
-  /** Show hamburger + slide-out menu on viewports below `lg`. */
-  enableMobileMenu?: boolean;
-};
-
-export function Header({ enableMobileMenu = false }: HeaderProps) {
-  const [open, setOpen] = React.useState(false);
+export function Header() {
   const scrolled = useScroll(10);
   const { user } = useAuth();
   const router = useRouter();
@@ -44,28 +37,9 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
   const handleSignOut = async () => {
     const { getBrowserSupabase } = await import('@/lib/supabase');
     await getBrowserSupabase().auth.signOut();
-    setOpen(false);
-    router.push('/');
+    router.push(routes.home);
     router.refresh();
   };
-
-  React.useEffect(() => {
-    if (!enableMobileMenu || !open) {
-      document.body.style.overflow = '';
-      return;
-    }
-    document.body.style.overflow = 'hidden';
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [enableMobileMenu, open]);
 
   React.useEffect(() => {
     let timer: number | undefined;
@@ -99,10 +73,10 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
     >
       <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 md:gap-5">
-          <Link href="/" className="hover:opacity-90 rounded-md p-1 transition-opacity">
+          <Link href={routes.dashboard} className="hover:opacity-90 rounded-md p-1 transition-opacity">
             <FolketsStemmeLogo />
           </Link>
-          <NavigationMenu className="hidden lg:flex">
+          <NavigationMenu className="hidden md:flex">
             <NavigationMenuList>
               <NavigationMenuItem>
                 <NavigationMenuTrigger className="bg-transparent">Utforsk</NavigationMenuTrigger>
@@ -117,7 +91,7 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
                   <div className="p-2">
                     <p className="text-muted-foreground text-sm">
                       Vil du delta?{' '}
-                      <Link href="/horinger" className="text-foreground font-medium hover:underline">
+                      <Link href={routes.horinger} className="text-foreground font-medium hover:underline">
                         Se åpne høringer
                       </Link>
                     </p>
@@ -166,11 +140,11 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
             </NavigationMenuList>
           </NavigationMenu>
         </div>
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 md:flex">
           {isLoggedIn ? (
             <>
               <Link
-                href="/varsler"
+                href={routes.varsler}
                 className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
                 aria-label="Varsler"
               >
@@ -181,7 +155,7 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
                   </span>
                 ) : null}
               </Link>
-              <Button variant="outline" render={<Link href="/min-side" />}>
+              <Button variant="outline" render={<Link href={routes.minSide} />}>
                 {displayName ? `Hei, ${displayName.split(' ')[0]}` : 'Min side'}
               </Button>
               <Button onClick={handleSignOut}>
@@ -191,38 +165,15 @@ export function Header({ enableMobileMenu = false }: HeaderProps) {
             </>
           ) : (
             <>
-              <Button variant="outline" render={<Link href="/auth/login" />}>
+              <Button variant="outline" render={<Link href={routes.login} />}>
                 <LogIn className="size-4" />
                 Logg inn
               </Button>
-              <Button render={<Link href="/auth/login" />}>Kom i gang</Button>
+              <Button render={<Link href={routes.login} />}>Kom i gang</Button>
             </>
           )}
         </div>
-        {enableMobileMenu ? (
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => setOpen(!open)}
-            className="lg:hidden text-foreground"
-            aria-expanded={open}
-            aria-controls="mobile-menu"
-            aria-label={open ? 'Lukk meny' : 'Åpne meny'}
-          >
-            <MenuToggleIcon open={open} className="size-5" duration={300} />
-          </Button>
-        ) : null}
       </nav>
-      {enableMobileMenu ? (
-        <MobileNavDrawer
-          open={open}
-          onClose={() => setOpen(false)}
-          isLoggedIn={isLoggedIn}
-          displayName={displayName}
-          unreadCount={unreadCount}
-          onSignOut={handleSignOut}
-        />
-      ) : null}
     </header>
   );
 }

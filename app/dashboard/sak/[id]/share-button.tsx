@@ -8,7 +8,7 @@ export default function ShareButton({ id, title }: { id: string, title: string }
   const [url, setUrl] = useState('');
 
   useEffect(() => {
-    setUrl(`${window.location.origin}/sak/${id}`);
+    setUrl(`${window.location.origin}/dashboard/sak/${id}`);
   }, [id]);
 
   const handleShare = async () => {

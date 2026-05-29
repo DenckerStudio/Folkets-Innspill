@@ -170,7 +170,7 @@ export default function ExplorePage() {
             displayedIssues.map((issue: any, index: number) => (
               <FadeIn key={issue.id} delay={0.1 * Math.min(index, 5)} direction="up">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow overflow-hidden">
-              <Link href={`/sak/${issue.id}`} className="block p-6 pb-4">
+              <Link href={`/dashboard/sak/${issue.id}`} className="block p-6 pb-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                   <div className="flex items-center gap-3">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
