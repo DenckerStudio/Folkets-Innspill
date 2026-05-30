@@ -9,24 +9,24 @@ export type PromptSourceHeadline = {
 
 export function parsePromptSources(raw: unknown): PromptSourceHeadline[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => {
-      if (!item || typeof item !== 'object') return null;
-      const row = item as Record<string, unknown>;
-      const title = String(row.title ?? '').trim();
-      const url = String(row.url ?? row.link ?? '').trim();
-      const outlet = String(row.outlet ?? 'Nyhet').trim();
-      if (!title || !url) return null;
-      return {
-        title,
-        url,
-        outlet,
-        imageUrl: row.imageUrl ? String(row.imageUrl) : null,
-        videoUrl: row.videoUrl ? String(row.videoUrl) : null,
-        publishedAt: row.publishedAt ? String(row.publishedAt) : null,
-      };
-    })
-    .filter((s): s is PromptSourceHeadline => s !== null);
+  const out: PromptSourceHeadline[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const title = String(row.title ?? '').trim();
+    const url = String(row.url ?? row.link ?? '').trim();
+    const outlet = String(row.outlet ?? 'Nyhet').trim();
+    if (!title || !url) continue;
+    out.push({
+      title,
+      url,
+      outlet,
+      imageUrl: row.imageUrl ? String(row.imageUrl) : null,
+      videoUrl: row.videoUrl ? String(row.videoUrl) : null,
+      publishedAt: row.publishedAt ? String(row.publishedAt) : null,
+    });
+  }
+  return out;
 }
 
 export function getPromptPrimaryMedia(sources: PromptSourceHeadline[]) {
