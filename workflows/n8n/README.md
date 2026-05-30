@@ -58,6 +58,21 @@ Etter migrasjon `20260529120000_simplify_issue_ai_summaries.sql`:
 
 Kjør `supabase db push` etter pull.
 
+## Forum trending prompts
+
+Workflow-kilde: [`forum-trending-prompts.workflow.ts`](forum-trending-prompts.workflow.ts)
+
+**Live workflow:** https://n8n.heyklever.app/workflow/MloIdsnX7FozM4dv
+
+1. **Fetch RSS headlines** (parallell HTTP + bilde/video fra RSS der tilgjengelig)
+2. **Collect all headlines** (prioriterer politikk-relevante saker, SearXNG politikk-søk) → **Ollama** → `forum_prompts` med `source_headlines` (kilde-URL, outlet, imageUrl, videoUrl)
+3. `sensitivity: high` → `draft` (godkjenn i `/dashboard/admin/forum-prompts`); `low` → `active` (7 dagers `expires_at`)
+4. UI: horisontal «reel»-karusell med kilde-lenker og forhåndsvisning av bilde/video
+
+Webhook: `POST /webhook/folkets-forum-prompts` (env `N8N_FORUM_PROMPTS_WEBHOOK_URL`).
+
+Set `searxngBaseUrl` in **Backfill settings** Set node (not `$env`).
+
 ## Deploy fra repo
 
 Valider og opprett via n8n-mcp: `validate_workflow` → `create_workflow_from_code` → `publish_workflow`.

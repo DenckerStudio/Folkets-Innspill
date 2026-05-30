@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
+import { ensurePublicUser } from '@/lib/ensure-public-user';
 import { createNotification, extractMentions, resolveMentionedUserIdsByName } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,8 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'Du må være logget inn' }, { status: 401 });
     }
+
+    await ensurePublicUser(user);
 
     const { hearing_id, body } = await request.json();
     if (!hearing_id || !body?.trim()) {

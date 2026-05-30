@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { ensurePublicUser } from "@/lib/ensure-public-user";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -28,6 +29,14 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        try {
+          await ensurePublicUser(user);
+        } catch (e) {
+          console.error('Failed to sync public.users on login', e);
+        }
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
