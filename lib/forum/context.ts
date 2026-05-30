@@ -37,6 +37,13 @@ export function insertContextIntoBody(body: string, item: ForumContextItem): str
   return `${trimmed}\n\n${line}\n`;
 }
 
+export function removeContextFromBody(body: string, item: ForumContextItem): string {
+  const line = formatContextLine(item);
+  const escaped = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`\\n?\\n?${escaped}\\n?`, 'g');
+  return body.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
 export function sakContextItem(id: string, title: string, subtitle?: string | null): ForumContextItem {
   return {
     kind: 'sak',

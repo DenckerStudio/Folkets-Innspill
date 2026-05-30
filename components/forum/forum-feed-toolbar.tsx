@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import type { ForumSort } from '@/lib/forum/queries';
+import { routes } from '@/lib/routes';
 
 const OPTIONS: { value: ForumSort; label: string }[] = [
   { value: 'nyeste', label: 'Nyeste' },
@@ -20,7 +21,7 @@ export default function ForumFeedToolbar() {
     if (next !== 'nyeste') params.set('sort', next);
     if (sak) params.set('sak', sak);
     const qs = params.toString();
-    router.push(qs ? `/dashboard/forum?${qs}` : '/dashboard/forum');
+    router.push(qs ? `${routes.forum}?${qs}` : routes.forum);
   };
 
   return (

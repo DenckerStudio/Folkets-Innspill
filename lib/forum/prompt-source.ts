@@ -29,14 +29,34 @@ export function parsePromptSources(raw: unknown): PromptSourceHeadline[] {
   return out;
 }
 
+export function getPromptSourceDateRange(sources: PromptSourceHeadline[]): string | null {
+  const dates = sources
+    .map((s) => (s.publishedAt ? new Date(s.publishedAt).getTime() : NaN))
+    .filter((t) => !Number.isNaN(t));
+  if (dates.length < 2) return null;
+  const min = new Date(Math.min(...dates));
+  const max = new Date(Math.max(...dates));
+  if (max.getTime() - min.getTime() < 3 * 24 * 60 * 60 * 1000) return null;
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
+  return `Dekket ${fmt(min)} – ${fmt(max)}`;
+}
+
 export function getPromptPrimaryMedia(sources: PromptSourceHeadline[]) {
-  const first = sources[0];
-  if (!first) return null;
-  if (first.videoUrl) {
-    return { type: 'video' as const, url: first.videoUrl, posterUrl: first.imageUrl ?? null, articleUrl: first.url };
+  for (const source of sources) {
+    if (source.videoUrl) {
+      return {
+        type: 'video' as const,
+        url: source.videoUrl,
+        posterUrl: source.imageUrl ?? null,
+        articleUrl: source.url,
+      };
+    }
   }
-  if (first.imageUrl) {
-    return { type: 'image' as const, url: first.imageUrl, articleUrl: first.url };
+  for (const source of sources) {
+    if (source.imageUrl) {
+      return { type: 'image' as const, url: source.imageUrl, articleUrl: source.url };
+    }
   }
   return null;
 }

@@ -3,6 +3,7 @@ import {
   deleteAiSummary,
   resolveAiSummaryForApi,
 } from '@/lib/ai-summary/service';
+import { requireForumAdmin } from '@/lib/forum/admin';
 import { triggerAiSummaryWebhook } from '@/lib/trigger-ai-summary-webhook';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +52,11 @@ export async function POST(
 
   if (!force) {
     return GET(request, { params });
+  }
+
+  const admin = await requireForumAdmin();
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   await deleteAiSummary(id);

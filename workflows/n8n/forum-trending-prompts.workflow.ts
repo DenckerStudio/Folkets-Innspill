@@ -20,11 +20,12 @@ const PROMPT_SYSTEM = `Du er politisk redaktør for «Folkets Stemme» (norsk bo
 
 INPUT: Nummererte saker [0], [1], … – kun disse titlene/lenkene finnes.
 
-Lag 3–5 avstemningsspørsmål. OBLIGATORISK JSON per spørsmål:
+Lag 6–10 avstemningsspørsmål. OBLIGATORISK JSON per spørsmål:
 - question: kort, konkret JA/NEI (maks 120 tegn). Start med «Støtter du», «Bør Norge», «Skal» eller «Er du enig i at».
-- source_indices: tall-array med 1–2 indekser fra listen som spørsmålet bygger på (PÅKREVD).
+- source_indices: tall-array med 3–6 indekser fra listen som spørsmålet bygger på (PÅKREVD, flere kilder = bedre).
 - topic_tags: 1–3 norske stikkord.
 - sensitivity: "low" eller "high" (high: krig, vold, kongehus, alvorlige personskandaler).
+- stortinget_issue_id: valgfri tekst-ID hvis spørsmålet tydelig gjelder en langvarig stortingssak fra listen.
 
 FORBUDT:
 - «Bør det avstemmes om …», «Bør staten gjøre mer …», vage spørsmål uten konkret politisk handling.
@@ -39,7 +40,8 @@ GODE eksempler (med source_indices):
 Svar med ett JSON-objekt, ingen markdown, ingen forklaring, ikke flere overskrifter:
 {"prompts":[{"question":"…","source_indices":[0],"topic_tags":["…"],"sensitivity":"low"}]}`;
 
-const FETCH_RSS_JS = `const settings = $input.first()?.json || {};
+const FETCH_RSS_JS = `const settings = $('Backfill settings').first()?.json || {};
+const longRunningIssues = ($input.all?.() || [$input.first()]).map((i) => i.json).filter((r) => r && r.id && r.title);
 const feeds = [
   { outlet: 'VG', url: 'https://www.vg.no/rss/feed/' },
   { outlet: 'Dagbladet', url: 'https://www.dagbladet.no/?lab_viewport=rss' },
@@ -101,10 +103,11 @@ for (const items of fetched) {
   }
 }
 
-return [{ json: { rssHeadlines, rssCount: rssHeadlines.length, searxngBaseUrl: settings.searxngBaseUrl, batchLimit: settings.batchLimit } }];`;
+return [{ json: { rssHeadlines, rssCount: rssHeadlines.length, longRunningIssues, searxngBaseUrl: settings.searxngBaseUrl, batchLimit: settings.batchLimit, longRunningMinDays: settings.longRunningMinDays } }];`;
 
 const COLLECT_HEADLINES_JS = `const input = $input.first()?.json || {};
 const rssHeadlines = Array.isArray(input.rssHeadlines) ? input.rssHeadlines : [];
+const longRunningIssues = Array.isArray(input.longRunningIssues) ? input.longRunningIssues : [];
 const baseUrl = input.searxngBaseUrl || 'https://searxng.heyklever.app';
 
 function outletFromUrl(url) {
@@ -113,6 +116,7 @@ function outletFromUrl(url) {
   if (url.includes('dagbladet.no')) return 'Dagbladet';
   if (url.includes('nrk.no')) return 'NRK';
   if (url.includes('aftenposten.no')) return 'Aftenposten';
+  if (url.includes('stortinget')) return 'Stortinget';
   return 'Nyhet';
 }
 
@@ -143,17 +147,77 @@ function politicsScore(title) {
   return s;
 }
 
+function normalizeTokens(title) {
+  const stop = new Set(['og','i','på','til','for','en','et','den','det','som','er','av','med','har',' ikke',' fra']);
+  return String(title).toLowerCase().replace(/[^a-zæøå0-9\\s]/g, ' ').split(/\\s+/).filter((w) => w.length > 3 && !stop.has(w));
+}
+
+function tokenOverlap(a, b) {
+  const setB = new Set(b);
+  let overlap = 0;
+  for (const w of a) if (setB.has(w)) overlap++;
+  return overlap;
+}
+
+function parseDate(value) {
+  const t = Date.parse(String(value || ''));
+  return Number.isNaN(t) ? null : t;
+}
+
+function recencyBoost(publishedAt) {
+  const t = parseDate(publishedAt);
+  if (!t) return 0;
+  const ageHours = (Date.now() - t) / 3600000;
+  if (ageHours < 24) return 2;
+  if (ageHours < 72) return 1;
+  return 0;
+}
+
 const items = [...rssHeadlines];
-try {
-  const res = await this.helpers.httpRequest({
-    method: 'GET',
-    url: baseUrl + '/search?q=site:nrk.no+OR+site:vg.no+OR+site:aftenposten.no+politikk+OR+regjering+OR+stortinget&format=json&language=nb-NO',
-    timeout: 8000,
+for (const issue of longRunningIssues.slice(0, 8)) {
+  items.push({
+    title: issue.title,
+    url: 'https://folketsstemme.no/dashboard/sak/' + issue.id,
+    outlet: 'Stortinget',
+    publishedAt: issue.first_seen_at || null,
+    imageUrl: null,
+    videoUrl: null,
+    stortingetIssueId: String(issue.id),
+    longRunning: true,
   });
-  for (const r of (res.results || []).slice(0, 8)) {
-    if (r.title && r.url) items.push({ title: r.title, url: r.url, link: r.url, outlet: outletFromUrl(r.url), imageUrl: r.img_src || r.thumbnail || null, videoUrl: null });
-  }
-} catch (_) {}
+}
+
+const searxQueries = [
+  'site:nrk.no OR site:vg.no politikk regjering stortinget',
+  'site:aftenposten.no OR site:dagbladet.no lovforslag budsjett',
+  'norge stortinget debatt',
+];
+for (const lr of longRunningIssues.slice(0, 3)) {
+  const shortTitle = String(lr.title || '').split(/[:–-]/)[0].trim().slice(0, 60);
+  if (shortTitle.length > 10) searxQueries.push(shortTitle + ' site:nrk.no OR site:vg.no');
+}
+
+for (const q of searxQueries) {
+  try {
+    const res = await this.helpers.httpRequest({
+      method: 'GET',
+      url: baseUrl + '/search?q=' + encodeURIComponent(q) + '&format=json&language=nb-NO',
+      timeout: 8000,
+    });
+    for (const r of (res.results || []).slice(0, 6)) {
+      if (r.title && r.url) {
+        items.push({
+          title: r.title,
+          url: r.url,
+          outlet: outletFromUrl(r.url),
+          imageUrl: r.img_src || r.thumbnail || null,
+          videoUrl: null,
+          publishedAt: r.publishedDate || null,
+        });
+      }
+    }
+  } catch (_) {}
+}
 
 const seen = new Set();
 const headlines = [];
@@ -161,7 +225,8 @@ for (const item of items) {
   const title = String(item.title || '').trim();
   const url = String(item.url || item.link || '').trim();
   const outlet = item.outlet || outletFromUrl(url);
-  if (!isLikelyArticle(url, title) || seen.has(url)) continue;
+  if (!isLikelyArticle(url, title) && !item.longRunning) continue;
+  if (seen.has(url)) continue;
   seen.add(url);
   headlines.push({
     title,
@@ -170,16 +235,50 @@ for (const item of items) {
     publishedAt: item.publishedAt || item.pubDate || null,
     imageUrl: item.imageUrl || null,
     videoUrl: item.videoUrl || null,
-    politicsScore: politicsScore(title),
+    stortingetIssueId: item.stortingetIssueId || null,
+    longRunning: !!item.longRunning,
+    politicsScore: politicsScore(title) + recencyBoost(item.publishedAt),
+    tokens: normalizeTokens(title),
   });
 }
 
 headlines.sort((a, b) => (b.politicsScore || 0) - (a.politicsScore || 0));
-let trimmed = headlines.filter((h) => (h.politicsScore || 0) >= 1).slice(0, 12);
-if (trimmed.length < 6) trimmed = headlines.slice(0, 10);
-trimmed = trimmed.map(({ politicsScore: _ps, ...rest }) => rest);
 
-return [{ json: { headlines: trimmed, headlineCount: trimmed.length, batchLimit: input.batchLimit } }];`;
+const clusters = [];
+for (const h of headlines) {
+  let cluster = null;
+  for (const c of clusters) {
+    if (tokenOverlap(h.tokens, c.representative) >= 2) {
+      cluster = c;
+      break;
+    }
+  }
+  if (!cluster) {
+    cluster = { id: clusters.length, representative: h.tokens, items: [] };
+    clusters.push(cluster);
+  }
+  cluster.items.push(h);
+}
+
+for (const c of clusters) {
+  const dates = c.items.map((i) => parseDate(i.publishedAt)).filter(Boolean);
+  c.spanDays = dates.length >= 2 ? (Math.max(...dates) - Math.min(...dates)) / 86400000 : 0;
+  c.score = c.items.reduce((s, i) => s + (i.politicsScore || 0), 0) + (c.spanDays >= 3 ? 5 : 0) + (c.items.some((i) => i.longRunning) ? 6 : 0);
+}
+
+clusters.sort((a, b) => b.score - a.score);
+const picked = [];
+for (const c of clusters) {
+  for (const h of c.items) {
+    picked.push({ ...h, clusterId: c.id, clusterSpanDays: c.spanDays });
+    if (picked.length >= 28) break;
+  }
+  if (picked.length >= 28) break;
+}
+
+const trimmed = picked.map(({ politicsScore: _ps, tokens: _t, ...rest }) => rest);
+
+return [{ json: { headlines: trimmed, headlineCount: trimmed.length, longRunningIssues, batchLimit: input.batchLimit } }];`;
 
 const BUILD_AGENT_INPUT_JS = `const headlines = $json.headlines || [];
 if (!headlines.length) {
@@ -188,7 +287,7 @@ if (!headlines.length) {
 const text = headlines.map((h, i) =>
   '[' + i + '] ' + h.title + ' (' + h.outlet + ')\\n    ' + h.url
 ).join('\\n');
-const footer = '\\n\\n---\\nListen over. Generer 3–5 avstemningsspørsmål som ETT JSON-objekt med prompts-array. Ikke skriv flere [n]-linjer eller overskrifter.';
+const footer = '\\n\\n---\\nListen over. Generer 6–10 avstemningsspørsmål som ETT JSON-objekt med prompts-array. Bruk 3–6 source_indices per spørsmål når mulig.';
 return [{ json: { headlines, headlinesText: (text + footer).slice(0, 5000), skipAgent: false, headlineCount: headlines.length } }];`;
 
 const MODERATION_ROUTE_JS = `const item = $input.first()?.json || {};
@@ -268,7 +367,7 @@ function fallbackPrompts(headlines) {
 }
 
 if (!prompts.length) prompts = fallbackPrompts(headlines);
-const batchLimit = Math.max(1, Math.min(10, Number($('Backfill settings').first()?.json?.batchLimit ?? 5) || 5));
+const batchLimit = Math.max(1, Math.min(12, Number($('Backfill settings').first()?.json?.batchLimit ?? 10) || 10));
 const blocked = /(porn|nazi|hitler|jævla neger)/i;
 const rejectQuestion = /bør det avstemmes|bør staten gjøre mer|bør det være nødvendig|forhindre brannskader i offentlige|antallet strømprisområder|olympiad|bronsemedalj|mesterliga|champions league|monty python|kultur og kreativ|forskning og utvikling i teknologiske|støtte førstehjelp i tilfelle|i norske byer bli forbudt for å forhindre skader|hva er den største|største utfordringen/i;
 const seenQuestions = new Set();
@@ -303,10 +402,23 @@ function pickSources(p, headlines) {
     const inferred = inferSourceIndex(p.question, headlines);
     if (inferred >= 0) indices = [inferred];
   }
-  const out = [];
+  const clusterIds = new Set();
   for (const raw of indices) {
     const h = headlines[Number(raw)];
-    if (!h) continue;
+    if (h && h.clusterId != null) clusterIds.add(h.clusterId);
+  }
+  if (clusterIds.size) {
+    for (let i = 0; i < headlines.length; i++) {
+      const h = headlines[i];
+      if (h && clusterIds.has(h.clusterId) && !indices.includes(i)) indices.push(i);
+    }
+  }
+  const out = [];
+  const seenUrl = new Set();
+  for (const raw of indices) {
+    const h = headlines[Number(raw)];
+    if (!h || seenUrl.has(h.url)) continue;
+    seenUrl.add(h.url);
     out.push({
       title: h.title,
       url: h.url,
@@ -315,8 +427,14 @@ function pickSources(p, headlines) {
       videoUrl: h.videoUrl || null,
       publishedAt: h.publishedAt || null,
     });
+    if (out.length >= 8) break;
   }
   return out;
+}
+
+function indicesForIssue(pr, hl) {
+  const idx = Array.isArray(pr.source_indices) ? pr.source_indices : [];
+  return idx.length ? idx : [inferSourceIndex(pr.question, hl)].filter((i) => i >= 0);
 }
 
 for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
@@ -328,6 +446,14 @@ for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
   const sources = pickSources(p, headlines);
   if (!sources.length) continue;
   seenQuestions.add(key);
+
+  let stortingetIssueId = typeof p.stortinget_issue_id === 'string' ? p.stortinget_issue_id.trim() : '';
+  if (!stortingetIssueId) {
+    for (const raw of indicesForIssue(p, headlines)) {
+      const h = headlines[Number(raw)];
+      if (h && h.stortingetIssueId) { stortingetIssueId = String(h.stortingetIssueId); break; }
+    }
+  }
 
   const sensitivity = p.sensitivity === 'high' ? 'high' : 'low';
   const status = sensitivity === 'high' ? 'draft' : 'active';
@@ -344,9 +470,10 @@ for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
   const tagsSql = tags.length
     ? \`ARRAY[\${tags.map((t) => "'" + esc(t) + "'").join(',')}]\`
     : 'ARRAY[]::text[]';
+  const stortingetSql = stortingetIssueId ? "'" + esc(stortingetIssueId) + "'" : 'NULL';
   const sql = status === 'active'
     ? \`INSERT INTO public.forum_prompts (
-    question, options, source_headlines, topic_tags, sensitivity, status, sort_order, expires_at
+    question, options, source_headlines, topic_tags, sensitivity, status, sort_order, expires_at, stortinget_issue_id
   ) VALUES (
     '\${esc(q)}',
     '\${optionsJson}'::jsonb,
@@ -355,10 +482,11 @@ for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
     '\${sensitivity}',
     '\${status}',
     \${results.length},
-    NOW() + INTERVAL '7 days'
+    NOW() + INTERVAL '7 days',
+    \${stortingetSql}
   )\`
     : \`INSERT INTO public.forum_prompts (
-    question, options, source_headlines, topic_tags, sensitivity, status, sort_order
+    question, options, source_headlines, topic_tags, sensitivity, status, sort_order, stortinget_issue_id
   ) VALUES (
     '\${esc(q)}',
     '\${optionsJson}'::jsonb,
@@ -366,7 +494,8 @@ for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
     \${tagsSql},
     '\${sensitivity}',
     '\${status}',
-    \${results.length}
+    \${results.length},
+    \${stortingetSql}
   )\`;
   results.push({ json: { sql, question: q, status } });
 }
@@ -386,6 +515,35 @@ const ollamaChatModel = languageModel({
       options: { think: false, temperature: 0.15, numPredict: 800, numCtx: 4096 },
     },
   },
+});
+
+const scheduleTriggerAfternoon = trigger({
+  type: 'n8n-nodes-base.scheduleTrigger',
+  version: 1.3,
+  config: {
+    name: 'Daily 14:00',
+    parameters: {
+      rule: {
+        interval: [{ field: 'cronExpression', expression: '0 14 * * *' }],
+      },
+    },
+  },
+  output: [{}],
+});
+
+const fetchLongRunningIssues = node({
+  type: 'n8n-nodes-base.postgres',
+  version: 2.6,
+  config: {
+    name: 'Fetch long-running saker',
+    credentials: { postgres: newCredential('Fokets Meninger') },
+    parameters: {
+      operation: 'executeQuery',
+      query:
+        "SELECT id, title, first_seen_at FROM public.stortinget_issues WHERE status = 'pending' AND first_seen_at IS NOT NULL AND first_seen_at < now() - interval '14 days' ORDER BY first_seen_at ASC LIMIT 10",
+    },
+  },
+  output: [{ id: '200329', title: 'Eksempel sak', first_seen_at: '2025-01-01T00:00:00Z' }],
 });
 
 const scheduleTrigger = trigger({
@@ -427,12 +585,13 @@ const backfillSettings = node({
       assignments: {
         assignments: [
           { id: 'searxng-base', name: 'searxngBaseUrl', value: 'https://searxng.heyklever.app', type: 'string' },
-          { id: 'batch-limit', name: 'batchLimit', value: '5', type: 'string' },
+          { id: 'batch-limit', name: 'batchLimit', value: '10', type: 'string' },
+          { id: 'long-running-days', name: 'longRunningMinDays', value: '14', type: 'string' },
         ],
       },
     },
   },
-  output: [{ searxngBaseUrl: 'https://searxng.heyklever.app', batchLimit: '5' }],
+  output: [{ searxngBaseUrl: 'https://searxng.heyklever.app', batchLimit: '10', longRunningMinDays: '14' }],
 });
 
 const fetchRssHeadlines = node({
@@ -567,12 +726,13 @@ const savePrompt = node({
 });
 
 sticky(
-  '## Forum trending prompts\\n\\nRSS + SearXNG → Ollama (llama3.2:3b-text, evt. qwen3-vl:8b én og én) → forum_prompts. batchLimit i Backfill settings.',
-  [scheduleTrigger, webhookTrigger],
+  '## Forum trending prompts v2\\n\\nLong-running Stortinget saker + RSS + multi SearXNG + clustering → Ollama → forum_prompts (batchLimit 10).',
+  [scheduleTrigger, scheduleTriggerAfternoon, webhookTrigger],
   { color: 5 }
 );
 
 const ingestPipeline = backfillSettings
+  .to(fetchLongRunningIssues)
   .to(fetchRssHeadlines)
   .to(collectAllHeadlines)
   .to(buildAgentInput)
@@ -583,6 +743,8 @@ export default workflow(
   'Folkets Stemme – Forum trending prompts'
 )
   .add(scheduleTrigger)
+  .to(ingestPipeline)
+  .add(scheduleTriggerAfternoon)
   .to(ingestPipeline)
   .add(webhookTrigger)
   .to(ingestPipeline);
