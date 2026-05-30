@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ExternalLink, Loader2, MessageSquare, Play, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Loader2, MessageSquare, Play, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import type { ForumPrompt } from '@/lib/forum/prompt-queries';
-import { getPromptPrimaryMedia } from '@/lib/forum/prompt-source';
+import { getPromptPrimaryMedia, getPromptSourceDateRange } from '@/lib/forum/prompt-source';
 import { routes } from '@/lib/routes';
 
 type ForumPromptCarouselProps = {
@@ -42,9 +42,13 @@ function PromptReelCard({ prompt }: { prompt: ForumPrompt }) {
   const [loading, setLoading] = useState<'vote' | 'discuss' | null>(null);
   const [error, setError] = useState('');
   const [mediaError, setMediaError] = useState(false);
+  const [sourcesExpanded, setSourcesExpanded] = useState(false);
 
   const hasVoted = !!selected;
   const media = getPromptPrimaryMedia(prompt.sources);
+  const dateRange = getPromptSourceDateRange(prompt.sources);
+  const visibleSources = sourcesExpanded ? prompt.sources : prompt.sources.slice(0, 3);
+  const hiddenSourceCount = Math.max(0, prompt.sources.length - 3);
   const handleVote = async (optionId: string) => {
     if (!user || loading) return;
     setLoading('vote');
@@ -138,25 +142,62 @@ function PromptReelCard({ prompt }: { prompt: ForumPrompt }) {
       )}
 
       <div className="flex flex-1 flex-col p-4">
+        {prompt.stortingetIssueId && (
+          <Link
+            href={routes.sak(prompt.stortingetIssueId)}
+            className="mb-2 inline-flex w-fit items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900 hover:bg-amber-200"
+          >
+            Langvarig stortingssak
+          </Link>
+        )}
+
         {prompt.sources.length > 0 && (
-          <ul className="mb-3 space-y-1.5">
-            {prompt.sources.slice(0, 2).map((source) => (
-              <li key={source.url}>
-                <a
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex items-start gap-1.5 text-xs text-gray-600 hover:text-indigo-700"
-                >
-                  <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-[10px] uppercase tracking-wide text-gray-700 group-hover:bg-indigo-100 group-hover:text-indigo-800">
-                    {source.outlet}
-                  </span>
-                  <span className="line-clamp-2 leading-snug">{source.title}</span>
-                  <ExternalLink className="w-3 h-3 shrink-0 mt-0.5 opacity-60" />
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-3">
+            {dateRange && (
+              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                {dateRange}
+              </p>
+            )}
+            <ul className="space-y-1.5">
+              {visibleSources.map((source) => (
+                <li key={source.url}>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-start gap-1.5 text-xs text-gray-600 hover:text-indigo-700"
+                  >
+                    <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-[10px] uppercase tracking-wide text-gray-700 group-hover:bg-indigo-100 group-hover:text-indigo-800">
+                      {source.outlet}
+                    </span>
+                    <span className="line-clamp-2 leading-snug">{source.title}</span>
+                    <ExternalLink className="w-3 h-3 shrink-0 mt-0.5 opacity-60" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {hiddenSourceCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setSourcesExpanded((v) => !v)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-600"
+                aria-expanded={sourcesExpanded}
+              >
+                {sourcesExpanded ? (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5" /> Vis færre kilder
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5" /> +{hiddenSourceCount} flere kilder
+                  </>
+                )}
+              </button>
+            )}
+            <p className="mt-1 text-[10px] text-gray-500">
+              {prompt.sources.length} {prompt.sources.length === 1 ? 'kilde' : 'kilder'}
+            </p>
+          </div>
         )}
 
         <p className="text-base font-bold text-gray-900 leading-snug mb-4">{prompt.question}</p>

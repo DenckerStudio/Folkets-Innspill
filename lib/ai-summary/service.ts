@@ -61,6 +61,42 @@ export type AiSummaryPending = {
 
 export type AiSummaryApiResult = AiSummaryReady | AiSummaryPending;
 
+const WEBHOOK_COOLDOWN_MS = 60 * 60 * 1000;
+
+async function markAiSummaryRequested(issueId: string): Promise<boolean> {
+  if (!supabaseConfigured()) return false;
+
+  try {
+    const supabase = getServiceSupabase();
+    const cutoff = new Date(Date.now() - WEBHOOK_COOLDOWN_MS).toISOString();
+
+    const { data: row } = await supabase
+      .from('stortinget_issues')
+      .select('ai_summary_requested_at')
+      .eq('id', issueId)
+      .maybeSingle();
+
+    if (row?.ai_summary_requested_at && row.ai_summary_requested_at >= cutoff) {
+      return false;
+    }
+
+    await supabase
+      .from('stortinget_issues')
+      .upsert(
+        {
+          id: issueId,
+          ai_summary_requested_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+
+    return true;
+  } catch (e) {
+    console.error('[ai-summary] Kunne ikke markere webhook-forespørsel:', e);
+    return true;
+  }
+}
+
 export async function resolveAiSummaryForApi(
   issueId: string,
   options: { triggerIfMissing?: boolean } = {}
@@ -71,7 +107,10 @@ export async function resolveAiSummaryForApi(
   }
 
   if (options.triggerIfMissing) {
-    triggerAiSummaryWebhook(issueId);
+    const shouldTrigger = await markAiSummaryRequested(issueId);
+    if (shouldTrigger) {
+      triggerAiSummaryWebhook(issueId);
+    }
   }
 
   return { status: 'pending', retry_after_seconds: 15 };

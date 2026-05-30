@@ -384,18 +384,15 @@ export async function getIssueTitle(issueId: string): Promise<string | null> {
 }
 
 export async function getSuggestedIssues(limit = 6): Promise<{ id: string; title: string }[]> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  try {
+    const { getSaker } = await import('@/lib/stortinget');
+    const issues = await getSaker();
+    return [...issues]
+      .sort((a, b) => (b.votes?.total ?? 0) - (a.votes?.total ?? 0))
+      .slice(0, limit)
+      .map((issue) => ({ id: String(issue.id), title: issue.title || `Sak ${issue.id}` }));
+  } catch (e) {
+    console.error('getSuggestedIssues:', e);
     return [];
   }
-
-  const supabase = getAnonSupabase();
-  const { data } = await supabase
-    .from('stortinget_issues')
-    .select('id,title')
-    .order('last_synced_at', { ascending: false })
-    .limit(limit);
-
-  return (data || [])
-    .filter((row) => row.title)
-    .map((row) => ({ id: row.id, title: row.title as string }));
 }

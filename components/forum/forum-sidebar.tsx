@@ -27,7 +27,9 @@ export default function ForumSidebar() {
         const active =
           isForumHome &&
           pathname === routes.forum &&
-          (sort === null ? !searchParams.get('sort') || currentSort === 'nyeste' : currentSort === sort);
+          (sort === null
+            ? !searchParams.get('sort')
+            : currentSort === sort);
 
         const linkHref = sakId && isForumHome
           ? `${routes.forum}?${new URLSearchParams({ ...(sort ? { sort } : {}), sak: sakId }).toString()}`
