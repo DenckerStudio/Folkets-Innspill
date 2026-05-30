@@ -9,7 +9,7 @@
 ### Architecture
 
 - **Auth**: Supabase Auth (email/password, Google OAuth, SMS OTP) — configured via Supabase Dashboard
-- **Database**: Supabase (PostgreSQL) with the `next_auth` schema for user management and `public` schema for domain tables
+- **Database**: Supabase (PostgreSQL) — auth via `auth.users`; profile rows in `public.users` (synced by `ensure_public_user` on login and before forum/hearing writes)
 - **External API**: Norwegian Parliament open data API (`data.stortinget.no`) — public, no auth required
 - **AI summaries**: Generated only by **n8n + Ollama** into `issue_ai_summaries`; the app reads from Supabase and triggers n8n via webhook (see Key caveats)
 
@@ -33,3 +33,9 @@
 - **n8n backfill**: Workflow «Folkets Stemme – AI-sammendrag backfill» (ID `GP666Zq84qc19tcE`) — https://n8n.heyklever.app/workflow/GP666Zq84qc19tcE. Source: `workflows/n8n/ai-summary-backfill.workflow.ts`, docs: `workflows/n8n/README.md`. Every 10 min (and webhook): Postgres → Ollama agent → upsert `issue_ai_summaries`. Credentials: **Ollama Heyklever**, **Supabase Postgres Folkets**.
 - **N8N_AI_SUMMARY_WEBHOOK_URL**: e.g. `https://n8n.heyklever.app/webhook/folkets-ai-summary`. `lib/trigger-ai-summary-webhook.ts` (5s abort, fire-and-forget) from sak sync and `GET` when summary missing. Body: `{ "stortinget_issue_id" }`.
 - **n8n blocks `$env` in node expressions**: Set `batchLimit` in **Backfill settings** Set nodes, not env vars.
+- **Forum (`/dashboard/forum`)**: Reddit-inspirert layout — sticky sidebar, feed toolbar (`?sort=engasjert|nyeste`, filter `?sak=`), post-kort, right rail, Reels-karusell for aktive `forum_prompts`. Ny tråd `/dashboard/forum/ny` med context picker (`sak|hearing|politician|document` → `context_items jsonb`). Likes-only (pill UI). Kilde-kort: `components/forum/forum-source-card.tsx`. Core: `lib/forum/*`, `components/forum/*`. Migration: `20260530120000_forum_enhancements.sql`.
+- **Forum moderation**: `lib/forum/moderation.ts` (regex hate/sexual/spam) + `lib/forum/sanitize-links.ts` (domene-allowlist med «Ekstern kilde»-badge, max 10 URLer). `lib/forum/validation.ts`: tittel 3–200 tegn, body max 10k, ingen nestede svar.
+- **Forum prompts**: n8n `workflows/n8n/forum-trending-prompts.workflow.ts` (RSS + SearXNG + Ollama → `forum_prompts`; high sensitivity → `draft`, low → `active`). Webhook `N8N_FORUM_PROMPTS_WEBHOOK_URL` (`/webhook/folkets-forum-prompts`). Avstemning/discuss: `/api/forum/prompt-vote`, `prompt-discuss`; 10 unike brukere → systemtråd (`is_system_thread`, `author_user_id` NULL, vises som «Folkets Stemme»).
+- **Forum prompts admin**: `/dashboard/admin/forum-prompts` + `GET/PATCH /api/admin/forum-prompts` — tilgang via `FORUM_ADMIN_EMAILS` (comma-separated) eller `app_metadata.role=admin`; godkjenning av draft → `active` setter 7 dagers `expires_at`.
+- **Stortinget issue sync**: `GET /api/cron/sync-issues` med header `x-cron-secret` (`CRON_SECRET` env) — bulk upsert `stortinget_issues` (100/chunk) via `lib/stortinget-sync.ts`. `GET /api/forum/context-search` søker DB først, faller tilbake til live Stortinget-API når sparse.
+- **SearXNG**: Docker i `infra/searxng/` (`docker compose up -d`; lokal `:8080`, prod f.eks. `https://search.heyklever.app`). n8n `searxngBaseUrl` i Set node (ikke `$env`); workflow faller tilbake til RSS-only hvis nede.

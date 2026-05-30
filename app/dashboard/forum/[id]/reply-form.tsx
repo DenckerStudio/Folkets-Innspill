@@ -1,17 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LogIn } from 'lucide-react';
+import { FORUM_LIMITS } from '@/lib/forum/validation';
+import { routes } from '@/lib/routes';
 
 export default function ForumReplyForm({ threadId }: { threadId: string }) {
   const [body, setBody] = useState('');
+  const [isOfficialResponse, setIsOfficialResponse] = useState(false);
+  const [isPolitician, setIsPolitician] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!user) {
+      setIsPolitician(false);
+      return;
+    }
+
+    fetch('/api/user/politician-status')
+      .then((res) => res.json())
+      .then((data) => setIsPolitician(!!data.isVerified))
+      .catch(() => setIsPolitician(false));
+  }, [user]);
 
   const handleSubmit = async () => {
     if (!body.trim() || isSubmitting) return;
@@ -19,14 +35,20 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
     setError('');
 
     try {
+      const payload: Record<string, unknown> = {
+        action: 'create_reply',
+        thread_id: threadId,
+        body: body.trim(),
+      };
+
+      if (isPolitician && isOfficialResponse) {
+        payload.is_official_response = true;
+      }
+
       const res = await fetch('/api/forum', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create_reply',
-          thread_id: threadId,
-          body: body.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -36,8 +58,9 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
       }
 
       setBody('');
+      setIsOfficialResponse(false);
       router.refresh();
-    } catch (e) {
+    } catch {
       setError('En feil oppstod');
     } finally {
       setIsSubmitting(false);
@@ -49,7 +72,7 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Skriv et svar</h3>
       {!user ? (
         <div className="text-center py-4">
-          <Link href="/auth/login" className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium">
+          <Link href={routes.login} className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium">
             <LogIn className="w-4 h-4 mr-1.5" />
             Logg inn for å svare
           </Link>
@@ -61,13 +84,25 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
               {error}
             </div>
           )}
-          <textarea 
-            rows={4} 
+          <textarea
+            rows={4}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            maxLength={FORUM_LIMITS.bodyMax}
             className="w-full border border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             placeholder="Hva tenker du om dette?"
           />
+          {isPolitician && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isOfficialResponse}
+                onChange={(e) => setIsOfficialResponse(e.target.checked)}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Marker som offisielt politikersvar
+            </label>
+          )}
           <div className="mt-4 flex justify-end">
             <button
               onClick={handleSubmit}
