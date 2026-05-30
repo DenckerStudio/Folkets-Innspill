@@ -11,19 +11,12 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
+import { NavLink, NavMenuLink, useNavSectionActive } from '@/components/ui/nav-link';
 import { Bell, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import {
-  deltaLinks,
-  hurtiglenker,
-  omLinks,
-  type SiteNavLinkItem,
-  utforskLinks,
-} from '@/lib/site-nav-links';
+import { desktopMoreNavLinks, desktopPrimaryNavLinks } from '@/lib/site-nav-links';
 import { routes } from '@/lib/routes';
-
-type LinkItem = SiteNavLinkItem;
 
 export function Header() {
   const scrolled = useScroll(10);
@@ -33,6 +26,9 @@ export function Header() {
   const [unreadCount, setUnreadCount] = React.useState(0);
   const displayName =
     user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+  const moreSectionActive = useNavSectionActive(
+    desktopMoreNavLinks.flatMap((item) => (item.isActive ? [item.isActive] : [])),
+  );
 
   const handleSignOut = async () => {
     const { getBrowserSupabase } = await import('@/lib/supabase');
@@ -76,69 +72,36 @@ export function Header() {
           <Link href={routes.dashboard} className="hover:opacity-90 rounded-md p-1 transition-opacity">
             <FolketsStemmeLogo />
           </Link>
-          <NavigationMenu className="hidden md:flex">
-            <NavigationMenuList>
-              <NavigationMenuItem>
-                <NavigationMenuTrigger className="bg-transparent">Utforsk</NavigationMenuTrigger>
-                <NavigationMenuContent className="bg-background p-1 pr-1.5">
-                  <ul className="bg-popover grid w-96 grid-cols-2 gap-2 rounded-md border p-2 shadow">
-                    {utforskLinks.map((item) => (
-                      <li key={item.href}>
-                        <NavListItem {...item} />
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="p-2">
-                    <p className="text-muted-foreground text-sm">
-                      Vil du delta?{' '}
-                      <Link href={routes.horinger} className="text-foreground font-medium hover:underline">
-                        Se åpne høringer
-                      </Link>
-                    </p>
-                  </div>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuTrigger className="bg-transparent">Delta</NavigationMenuTrigger>
-                <NavigationMenuContent className="bg-background p-1 pr-1.5 pb-1.5">
-                  <div className="grid w-96 grid-cols-2 gap-2">
-                    <ul className="bg-popover space-y-2 rounded-md border p-2 shadow">
-                      {deltaLinks.map((item) => (
+          <div className="hidden items-center gap-0.5 md:flex">
+            {desktopPrimaryNavLinks.map((item) => (
+              <NavLink key={item.href} href={item.href} isActive={item.isActive}>
+                {item.label}
+              </NavLink>
+            ))}
+            <NavigationMenu>
+              <NavigationMenuList>
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger
+                    className={cn(
+                      'bg-transparent',
+                      moreSectionActive && 'text-[#00205b]',
+                    )}
+                  >
+                    Mer
+                  </NavigationMenuTrigger>
+                  <NavigationMenuContent className="bg-background p-1 pr-1.5">
+                    <ul className="bg-popover w-72 space-y-1 rounded-md border p-2 shadow">
+                      {desktopMoreNavLinks.map((item) => (
                         <li key={item.href}>
-                          <NavListItem {...item} />
+                          <NavMenuLink {...item} />
                         </li>
                       ))}
                     </ul>
-                    <ul className="space-y-2 p-3">
-                      {hurtiglenker.map((item) => (
-                        <li key={item.href}>
-                          <Link
-                            href={item.href}
-                            className="flex p-2 hover:bg-accent flex-row rounded-md items-center gap-x-2"
-                          >
-                            <item.icon className="text-foreground size-4" />
-                            <span className="font-medium">{item.title}</span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuTrigger className="bg-transparent">Om</NavigationMenuTrigger>
-                <NavigationMenuContent className="bg-background p-1 pr-1.5">
-                  <ul className="bg-popover w-72 space-y-2 rounded-md border p-2 shadow">
-                    {omLinks.map((item) => (
-                      <li key={item.href}>
-                        <NavListItem {...item} />
-                      </li>
-                    ))}
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
+          </div>
         </div>
         <div className="hidden items-center gap-2 md:flex">
           {isLoggedIn ? (
@@ -175,32 +138,6 @@ export function Header() {
         </div>
       </nav>
     </header>
-  );
-}
-
-function NavListItem({
-  title,
-  description,
-  icon: Icon,
-  href,
-}: LinkItem) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'w-full flex flex-row gap-x-2 rounded-sm p-2',
-        'hover:bg-accent hover:text-accent-foreground',
-        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-      )}
-    >
-      <div className="bg-background/40 flex aspect-square size-12 items-center justify-center rounded-md border shadow-sm">
-        <Icon className="text-foreground size-5" />
-      </div>
-      <div className="flex flex-col items-start justify-center">
-        <span className="font-medium">{title}</span>
-        {description ? <span className="text-muted-foreground text-xs">{description}</span> : null}
-      </div>
-    </Link>
   );
 }
 
