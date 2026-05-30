@@ -64,14 +64,55 @@ Workflow-kilde: [`forum-trending-prompts.workflow.ts`](forum-trending-prompts.wo
 
 **Live workflow:** https://n8n.heyklever.app/workflow/MloIdsnX7FozM4dv
 
-1. **Fetch RSS headlines** (parallell HTTP + bilde/video fra RSS der tilgjengelig)
-2. **Collect all headlines** (prioriterer politikk-relevante saker, SearXNG politikk-søk) → **Ollama** → `forum_prompts` med `source_headlines` (kilde-URL, outlet, imageUrl, videoUrl)
-3. `sensitivity: high` → `draft` (godkjenn i `/dashboard/admin/forum-prompts`); `low` → `active` (7 dagers `expires_at`)
-4. UI: horisontal «reel»-karusell med kilde-lenker og forhåndsvisning av bilde/video
+**v2 flyt:**
+
+1. **Fetch long-running saker** (Postgres: `status=pending`, `first_seen_at` > 14 dager)
+2. **Fetch RSS headlines** (parallell HTTP + bilde/video fra RSS)
+3. **Collect all headlines** — flere SearXNG-queries, clustering, outlet-diversitet, opptil 28 artikler
+4. **Ollama** → 6–10 prompts med 3–8 kilder per reel + valgfri `stortinget_issue_id`
+5. `sensitivity: high` → `draft`; `low` → `active` (7 dagers `expires_at`)
+6. UI: karusell med opptil 18 reels, utvidbare kilder, badge for langvarig sak
+
+| Nøkkel | Backfill settings |
+|--------|-------------------|
+| `batchLimit` | `10` |
+| `searxngBaseUrl` | f.eks. `https://searxng.heyklever.app` |
+| `longRunningMinDays` | `14` |
+
+Crons: 06:00 og 14:00 (n8n schedule triggers).
 
 Webhook: `POST /webhook/folkets-forum-prompts` (env `N8N_FORUM_PROMPTS_WEBHOOK_URL`).
 
-Set `searxngBaseUrl` in **Backfill settings** Set node (not `$env`).
+Krever migrasjon `20260531120000_production_readiness.sql` (`first_seen_at`, `stortinget_issue_id` på prompts).
+
+## App cron (erstatter Vercel Cron)
+
+Workflow-kilde: [`app-cron.workflow.ts`](app-cron.workflow.ts)
+
+Vercel **Hobby** har ikke Cron Jobs (krever Pro). n8n scheduler kaller appens beskyttede endepunkter med header `x-cron-secret`.
+
+| n8n schedule | App-endepunkt |
+|--------------|---------------|
+| Daglig 03:00 | `GET /api/cron/sync-issues` |
+| Daglig 04:00 | `GET /api/cron/categories` |
+| Daglig 07:00 | `GET /api/cron/digest?frequency=daily` |
+| Mandag 07:30 | `GET /api/cron/digest?frequency=weekly` |
+
+**Cron settings** (Set node — fyll inn i n8n, ikke commit secret):
+
+| Felt | Verdi |
+|------|--------|
+| `appBaseUrl` | Prod-URL: `https://www.folkets-stemme.no` |
+| `cronSecret` | Samme som `CRON_SECRET` i Vercel env (alle fire Cron settings-noder) |
+
+**Live workflow:** https://n8n.heyklever.app/workflow/rwiy05sitrv5QDbQ
+
+Manuell test:
+
+```bash
+curl -sS -H "x-cron-secret: $CRON_SECRET" \
+  "https://www.folkets-stemme.no/api/cron/sync-issues"
+```
 
 ## Deploy fra repo
 
