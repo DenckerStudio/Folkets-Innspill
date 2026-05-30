@@ -2,87 +2,118 @@ import type { LucideIcon } from 'lucide-react';
 import {
   BarChart2,
   FileEdit,
-  Home,
   Info,
+  LayoutDashboard,
   MessageSquare,
   Search,
   UserRound,
   Users,
 } from 'lucide-react';
-import { routes } from '@/lib/routes';
+import { DASHBOARD_PREFIX, routes } from '@/lib/routes';
+
+export type NavIsActive = (pathname: string) => boolean;
 
 export type SiteNavLinkItem = {
   title: string;
   href: string;
   icon: LucideIcon;
   description?: string;
+  isActive?: NavIsActive;
 };
 
-/** Utforsk – saker og representanter */
-export const utforskLinks: SiteNavLinkItem[] = [
-  {
-    title: 'Utforsk saker',
-    href: routes.utforsk,
-    description: 'Se og stem på aktuelle stortingssaker',
-    icon: Search,
-  },
-  {
-    title: 'Politikere',
-    href: routes.politikere,
-    description: 'Finn representanter og deres standpunkt',
-    icon: Users,
-  },
-  {
-    title: 'Dashboard',
-    href: routes.dashboard,
-    description: 'Oversikt over plattformen',
-    icon: Home,
-  },
+export type PrimaryNavLink = {
+  label: string;
+  href: string;
+  isActive: NavIsActive;
+};
+
+export const isDashboardActive: NavIsActive = (pathname) => pathname === DASHBOARD_PREFIX;
+
+export const isUtforskActive: NavIsActive = (pathname) =>
+  pathname === routes.utforsk ||
+  pathname.startsWith(`${routes.utforsk}/`) ||
+  pathname.startsWith(`${DASHBOARD_PREFIX}/sak/`);
+
+export const isPolitikereActive: NavIsActive = (pathname) =>
+  pathname.startsWith(routes.politikere) || pathname.startsWith(routes.representanter);
+
+export const isHoringerActive: NavIsActive = (pathname) =>
+  pathname === routes.horinger || pathname.startsWith(`${routes.horinger}/`);
+
+export const isForumActive: NavIsActive = (pathname) =>
+  pathname === routes.forum || pathname.startsWith(`${routes.forum}/`);
+
+export const isMinSideActive: NavIsActive = (pathname) =>
+  pathname.startsWith(routes.minSide) ||
+  pathname.startsWith(routes.varsler) ||
+  pathname.startsWith('/auth');
+
+export const isOmOssActive: NavIsActive = (pathname) => pathname === routes.omOss;
+
+export const isPolitikerHubActive: NavIsActive = (pathname) =>
+  pathname.startsWith(routes.politikerHub);
+
+/** Combined Utforsk active state for mobile (includes politikere/saker). */
+export const isMobileUtforskActive: NavIsActive = (pathname) =>
+  isUtforskActive(pathname) || isPolitikereActive(pathname);
+
+/** Flat desktop primary nav — no duplicates. */
+export const desktopPrimaryNavLinks: PrimaryNavLink[] = [
+  { label: 'Dashboard', href: routes.dashboard, isActive: isDashboardActive },
+  { label: 'Utforsk', href: routes.utforsk, isActive: isUtforskActive },
+  { label: 'Politikere', href: routes.politikere, isActive: isPolitikereActive },
+  { label: 'Høringer', href: routes.horinger, isActive: isHoringerActive },
+  { label: 'Forum', href: routes.forum, isActive: isForumActive },
 ];
 
-/** Delta – høringer, forum og politiker-hub */
-export const deltaLinks: SiteNavLinkItem[] = [
+/** Secondary links in the «Mer» dropdown. */
+export const desktopMoreNavLinks: SiteNavLinkItem[] = [
   {
-    title: 'Høringer',
-    href: routes.horinger,
-    description: 'Gi innspill til pågående høringer',
-    icon: FileEdit,
-  },
-  {
-    title: 'Forum',
-    href: routes.forum,
-    description: 'Diskuter med andre innbyggere',
-    icon: MessageSquare,
+    title: 'Om oss',
+    href: routes.omOss,
+    description: 'Historie, mål og hvordan vi jobber',
+    icon: Info,
+    isActive: isOmOssActive,
   },
   {
     title: 'Politiker-hub',
     href: routes.politikerHub,
     description: 'Innsikt og svar til innbyggere',
     icon: BarChart2,
+    isActive: isPolitikerHubActive,
   },
 ];
 
-/** Om plattformen */
-export const omLinks: SiteNavLinkItem[] = [
+/** Mobile bottom nav items. */
+export const mobileNavItems = [
   {
-    title: 'Om oss',
-    href: routes.omOss,
-    description: 'Historie, mål og hvordan vi jobber',
-    icon: Info,
+    label: 'Dashboard',
+    href: routes.dashboard,
+    icon: LayoutDashboard,
+    isActive: isDashboardActive,
   },
   {
-    title: 'Min side',
+    label: 'Utforsk',
+    href: routes.utforsk,
+    icon: Search,
+    isActive: isMobileUtforskActive,
+  },
+  {
+    label: 'Høringer',
+    href: routes.horinger,
+    icon: FileEdit,
+    isActive: isHoringerActive,
+  },
+  {
+    label: 'Forum',
+    href: routes.forum,
+    icon: MessageSquare,
+    isActive: isForumActive,
+  },
+  {
+    label: 'Profil',
     href: routes.minSide,
-    description: 'Profil, stemmer og varsler',
     icon: UserRound,
+    isActive: isMinSideActive,
   },
-];
-
-/** Hurtiglenker i dropdown (desktop) */
-export const hurtiglenker: SiteNavLinkItem[] = [
-  { title: 'Dashboard', href: routes.dashboard, icon: Home },
-  { title: 'Utforsk', href: routes.utforsk, icon: Search },
-  { title: 'Høringer', href: routes.horinger, icon: FileEdit },
-  { title: 'Forum', href: routes.forum, icon: MessageSquare },
-  { title: 'Politiker-hub', href: routes.politikerHub, icon: BarChart2 },
-];
+] as const;
