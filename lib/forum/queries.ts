@@ -45,6 +45,21 @@ export function formatForumDate(dateStr: string): string {
 
 export type ForumSort = 'nyeste' | 'engasjert';
 
+/** Min. 2 tegn; fjerner tegn som bryter PostgREST `ilike`-filter. */
+export function forumSearchPattern(q: string | null | undefined): string | null {
+  const trimmed = q?.trim() ?? '';
+  if (trimmed.length < 2) return null;
+  const safe = trimmed
+    .slice(0, 100)
+    .replace(/[%_,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (safe.length < 2) return null;
+  // Mellomrom → % slik at PostgREST `.or()`-filter ikke brytes
+  const core = safe.replace(/\s+/g, '%');
+  return `%${core}%`;
+}
+
 export type ForumThreadListItem = {
   id: string;
   title: string;
@@ -85,10 +100,12 @@ function mergeContextItems(body: string, jsonItems: unknown): ForumContextItem[]
 export async function getForumThreads(options?: {
   sakId?: string | null;
   sort?: ForumSort;
+  search?: string | null;
   limit?: number;
 }): Promise<ForumThreadListItem[]> {
   const sakId = options?.sakId?.trim() || null;
   const sort = options?.sort ?? 'nyeste';
+  const searchPattern = forumSearchPattern(options?.search);
   const limit = options?.limit ?? 20;
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -115,6 +132,10 @@ export async function getForumThreads(options?: {
 
     if (sakId) {
       query = query.eq('stortinget_issue_id', sakId);
+    }
+
+    if (searchPattern) {
+      query = query.or(`title.ilike.${searchPattern},body.ilike.${searchPattern}`);
     }
 
     const { data: threads, error } = await query;
