@@ -3,6 +3,7 @@ import { getServerSupabase } from '@/lib/supabase-server';
 import { getServiceSupabase } from '@/lib/supabase';
 import { ensurePublicUser } from '@/lib/ensure-public-user';
 import { createNotification, extractMentions, resolveMentionedUserIdsByName } from '@/lib/notifications';
+import { mapForumRpcError } from '@/lib/forum/rpc-errors';
 import {
   validateCreateReply,
   validateCreateThread,
@@ -40,7 +41,9 @@ export async function POST(request: Request) {
       });
       if (error) {
         console.error('Create thread error:', error);
-        return NextResponse.json({ error: 'Kunne ikke opprette tråd' }, { status: 500 });
+        const msg = mapForumRpcError(error.message);
+        const status = msg.includes('fornavn') ? 400 : 500;
+        return NextResponse.json({ error: msg }, { status });
       }
 
       const origin = new URL(request.url).origin;
@@ -83,7 +86,9 @@ export async function POST(request: Request) {
       });
       if (error) {
         console.error('Create reply error:', error);
-        return NextResponse.json({ error: 'Kunne ikke publisere svar' }, { status: 500 });
+        const msg = mapForumRpcError(error.message);
+        const status = msg.includes('fornavn') ? 400 : 500;
+        return NextResponse.json({ error: msg }, { status });
       }
 
       const origin = new URL(request.url).origin;

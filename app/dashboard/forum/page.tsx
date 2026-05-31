@@ -5,6 +5,7 @@ import ForumPostCard from '@/components/forum/forum-post-card';
 import ForumPromptCarousel from '@/components/forum/forum-prompt-carousel';
 import ForumFeedToolbar from '@/components/forum/forum-feed-toolbar';
 import ForumRightRail from '@/components/forum/forum-right-rail';
+import { ForumIdentityBanner } from '@/components/forum/forum-identity-banner';
 import { getForumThreads, getIssueTitle, getSuggestedIssues, type ForumSort } from '@/lib/forum/queries';
 import { getActiveForumPrompts } from '@/lib/forum/prompt-queries';
 import { routes } from '@/lib/routes';
@@ -38,6 +39,8 @@ export default async function ForumPage({
             Diskuter saker, still spørsmål og delta i dagens avstemninger.
           </p>
         </header>
+
+        <ForumIdentityBanner />
 
         {sakId && (
           <div className="mb-6 rounded-xl border border-indigo-100 bg-indigo-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

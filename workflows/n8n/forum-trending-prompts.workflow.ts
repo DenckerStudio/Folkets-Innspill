@@ -1,6 +1,6 @@
 /**
- * Folkets Stemme – Forum trending prompts
- * RSS + SearXNG → Ollama → forum_prompts
+ * Folkets Stemme – Forum trending prompts v3
+ * RSS + SearXNG + langvarige saker → Ollama agent (tools + memory) → forum_prompts
  *
  * Live: https://n8n.heyklever.app/workflow/MloIdsnX7FozM4dv
  * Webhook: folkets-forum-prompts
@@ -12,36 +12,46 @@ import {
   sticky,
   newCredential,
   languageModel,
+  memory,
+  tool,
+  outputParser,
   ifElse,
   expr,
 } from '@n8n/workflow-sdk';
 
 const PROMPT_SYSTEM = `Du er politisk redaktør for «Folkets Stemme» (norsk borgerdebatt).
 
-INPUT: Nummererte saker [0], [1], … – kun disse titlene/lenkene finnes.
+INPUT: Nummererte nyhetsoverskrifter [0], [1], … – kun disse titlene/lenkene finnes.
+Du får også EXISTING_PROMPTS – spørsmål som allerede finnes og MÅ unngås (inkl. nær-duplikater).
 
-Lag 6–10 avstemningsspørsmål. OBLIGATORISK JSON per spørsmål:
-- question: kort, konkret JA/NEI (maks 120 tegn). Start med «Støtter du», «Bør Norge», «Skal» eller «Er du enig i at».
-- source_indices: tall-array med 3–6 indekser fra listen som spørsmålet bygger på (PÅKREVD, flere kilder = bedre).
-- topic_tags: 1–3 norske stikkord.
-- sensitivity: "low" eller "high" (high: krig, vold, kongehus, alvorlige personskandaler).
-- stortinget_issue_id: valgfri tekst-ID hvis spørsmålet tydelig gjelder en langvarig stortingssak fra listen.
+Arbeidsflyt:
+1. Les overskrifter og identifiser 6–10 politiske temaer/klynger
+2. Gruppér relaterte overskrifter (samme clusterId der det finnes)
+3. Formuler unike JA/NEI-spørsmål som ikke overlapper EXISTING_PROMPTS
+4. Returner KUN gyldig JSON: {"prompts":[...]} – ingen markdown eller forklaring
 
-FORBUDT:
-- «Bør det avstemmes om …», «Bør staten gjøre mer …», vage spørsmål uten konkret politisk handling.
-- Sport/kjendis uten politisk vinkel.
-- options-felt (ikke inkluder alternativer).
-- Oppfinne saker som ikke står i listen.
+Per spørsmål:
+- question: kort, konkret (maks 120 tegn). Start med «Støtter du», «Bør Norge», «Skal» eller «Er du enig i at»
+- source_indices: 3–6 indekser fra listen (PÅKREVD)
+- topic_tags: 1–3 norske stikkord
+- sensitivity: "low" eller "high" (high: krig, vold, kongehus, alvorlige personskandaler)
+- stortinget_issue_id: valgfri tekst-ID for langvarig stortingssak
 
-GODE eksempler (med source_indices):
-- question: «Støtter du nasjonalt forbud mot russelasere?», source_indices: [1]
-- question: «Bør Norge stramme regler for KI-videoer i valgkamp?», source_indices: [5]
+FORBUDT: vage spørsmål, sport/kjendis uten politikk, options-felt, duplikater av EXISTING_PROMPTS.`;
 
-Svar med ett JSON-objekt, ingen markdown, ingen forklaring, ikke flere overskrifter:
-{"prompts":[{"question":"…","source_indices":[0],"topic_tags":["…"],"sensitivity":"low"}]}`;
+const EXISTING_PROMPTS_SQL = `SELECT
+  COALESCE(json_agg(DISTINCT lower(trim(question))) FILTER (WHERE question IS NOT NULL AND trim(question) <> ''), '[]'::json) AS existing_questions,
+  COALESCE(MAX(sort_order) FILTER (WHERE status = 'active' AND (expires_at IS NULL OR expires_at > now())), 0) AS max_sort_order
+FROM public.forum_prompts
+WHERE trim(question) <> ''
+  AND (
+    (status = 'active' AND (expires_at IS NULL OR expires_at > now()))
+    OR created_at > now() - interval '30 days'
+  )`;
 
 const FETCH_RSS_JS = `const settings = $('Backfill settings').first()?.json || {};
-const longRunningIssues = ($input.all?.() || [$input.first()]).map((i) => i.json).filter((r) => r && r.id && r.title);
+const existingRow = $('Fetch existing prompts').first()?.json || {};
+const longRunningIssues = ($input.all?.() || [$input.first()]).map((i) => i.json).filter((r) => r && r.id && r.title && r.id !== '_none_');
 const feeds = [
   { outlet: 'VG', url: 'https://www.vg.no/rss/feed/' },
   { outlet: 'Dagbladet', url: 'https://www.dagbladet.no/?lab_viewport=rss' },
@@ -103,11 +113,24 @@ for (const items of fetched) {
   }
 }
 
-return [{ json: { rssHeadlines, rssCount: rssHeadlines.length, longRunningIssues, searxngBaseUrl: settings.searxngBaseUrl, batchLimit: settings.batchLimit, longRunningMinDays: settings.longRunningMinDays } }];`;
+return [{
+  json: {
+    rssHeadlines,
+    rssCount: rssHeadlines.length,
+    longRunningIssues,
+    existingQuestions: existingRow.existing_questions || [],
+    maxSortOrder: Number(existingRow.max_sort_order) || 0,
+    searxngBaseUrl: settings.searxngBaseUrl,
+    batchLimit: settings.batchLimit,
+    longRunningMinDays: settings.longRunningMinDays,
+  },
+}];`;
 
 const COLLECT_HEADLINES_JS = `const input = $input.first()?.json || {};
 const rssHeadlines = Array.isArray(input.rssHeadlines) ? input.rssHeadlines : [];
 const longRunningIssues = Array.isArray(input.longRunningIssues) ? input.longRunningIssues : [];
+const existingQuestions = Array.isArray(input.existingQuestions) ? input.existingQuestions : [];
+const maxSortOrder = Number(input.maxSortOrder) || 0;
 const baseUrl = input.searxngBaseUrl || 'https://searxng.heyklever.app';
 
 function outletFromUrl(url) {
@@ -139,7 +162,7 @@ function isLikelyArticle(url, title) {
 
 function politicsScore(title) {
   const t = String(title).toLowerCase();
-  const boost = /(storting|regjering|minister|lov|lovforslag|budsjett|valg|skatt|forsvar|nato|eu |politi|domstol|klima|russ|russe|immigrasjon|helse|utdanning|kommune|statsbudsjett|epstein|krig|ukraina|gaza|terror|skole|bolig|strøm|olje|korrupsjon|dsa|høyesterett)/i;
+  const boost = /(storting|regjering|minister|lov|lovforslag|budsjett|valg|skatt|forsvar|nato|eu |politi|domstol|klima|russ|russe|immigrasjon|helse|utdanning|kommune|statsbudsjett|epstein|krig|ukraina|gaza|terror|skole|bolig|strøm|olje|korrupsjon|dsa|høyesterett|mediepolitikk|asyl|barnevern|kraft|bompenger|toll)/i;
   const noise = /(mesterliga|champions league|håndball|ishockey|everest|monty python|frimerke|kjendis|rampelys|skjønnhet|fotball|rbk|carlsen|soft glam)/i;
   let s = 0;
   if (boost.test(t)) s += 3;
@@ -190,7 +213,9 @@ for (const issue of longRunningIssues.slice(0, 8)) {
 const searxQueries = [
   'site:nrk.no OR site:vg.no politikk regjering stortinget',
   'site:aftenposten.no OR site:dagbladet.no lovforslag budsjett',
-  'norge stortinget debatt',
+  'norge stortinget debatt mediepolitikk',
+  'norge ukraina forsvar støtte',
+  'norge klima kraft strøm',
 ];
 for (const lr of longRunningIssues.slice(0, 3)) {
   const shortTitle = String(lr.title || '').split(/[:–-]/)[0].trim().slice(0, 60);
@@ -276,19 +301,101 @@ for (const c of clusters) {
   if (picked.length >= 28) break;
 }
 
-const trimmed = picked.map(({ politicsScore: _ps, tokens: _t, ...rest }) => rest);
+const trimmed = picked.map(({ politicsScore: ps, tokens: _t, ...rest }) => ({
+  ...rest,
+  isPolitical: (ps || 0) >= 1 || !!rest.longRunning,
+}));
 
-return [{ json: { headlines: trimmed, headlineCount: trimmed.length, longRunningIssues, batchLimit: input.batchLimit } }];`;
+return [{
+  json: {
+    headlines: trimmed,
+    headlineCount: trimmed.length,
+    longRunningIssues,
+    existingQuestions,
+    maxSortOrder,
+    batchLimit: input.batchLimit,
+  },
+}];`;
 
 const BUILD_AGENT_INPUT_JS = `const headlines = $json.headlines || [];
+const existingQuestions = Array.isArray($json.existingQuestions) ? $json.existingQuestions : [];
+const maxSortOrder = Number($json.maxSortOrder) || 0;
+
 if (!headlines.length) {
-  return [{ json: { headlines: [], headlinesText: '', skipAgent: true, headlineCount: 0 } }];
+  return [{ json: { headlines: [], headlinesText: '', skipAgent: true, headlineCount: 0, existingQuestions, maxSortOrder } }];
 }
+
+const existingBlock = existingQuestions.length
+  ? '\\n\\nEXISTING_PROMPTS (unngå disse og nær-duplikater):\\n' + existingQuestions.slice(0, 40).map((q, i) => '- ' + q).join('\\n')
+  : '\\n\\nEXISTING_PROMPTS: (ingen tidligere – du har frihet til nye temaer)';
+
 const text = headlines.map((h, i) =>
-  '[' + i + '] ' + h.title + ' (' + h.outlet + ')\\n    ' + h.url
+  '[' + i + '] ' + h.title + ' (' + h.outlet + ')' + (h.longRunning ? ' [langvarig sak]' : '') + '\\n    ' + h.url
 ).join('\\n');
-const footer = '\\n\\n---\\nListen over. Generer 6–10 avstemningsspørsmål som ETT JSON-objekt med prompts-array. Bruk 3–6 source_indices per spørsmål når mulig.';
-return [{ json: { headlines, headlinesText: (text + footer).slice(0, 5000), skipAgent: false, headlineCount: headlines.length } }];`;
+
+const footer = existingBlock + '\\n\\n---\\nReturner 6–10 unike avstemningsspørsmål som JSON. Ikke bruk «...» som spørsmålstekst – skriv fullstendige JA/NEI-spørsmål.';
+return [{
+  json: {
+    headlines,
+    headlinesText: (text + footer).slice(0, 6000),
+    skipAgent: false,
+    headlineCount: headlines.length,
+    existingQuestions,
+    maxSortOrder,
+  },
+}];`;
+
+const CHECK_DUPLICATE_TOOL_JS = `const query = String($input?.query ?? '').trim();
+const existing = $('Build agent input').first()?.json?.existingQuestions || [];
+
+function norm(q) {
+  return String(q || '').toLowerCase().replace(/[^a-zæøå0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim();
+}
+
+function tokens(q) {
+  return norm(q).split(' ').filter((w) => w.length > 3);
+}
+
+function isNearDuplicate(candidate, baseline) {
+  const c = norm(candidate);
+  const b = norm(baseline);
+  if (!c || !b) return false;
+  if (c === b) return true;
+  const ct = tokens(c);
+  const bt = new Set(tokens(b));
+  if (!ct.length) return false;
+  let overlap = 0;
+  for (const w of ct) if (bt.has(w)) overlap++;
+  const ratio = overlap / ct.length;
+  return overlap >= 4 && ratio >= 0.55;
+}
+
+const key = norm(query);
+if (!key) return 'ERROR: empty question';
+
+for (const e of existing) {
+  if (isNearDuplicate(key, e)) {
+    return 'DUPLICATE: overlaps with existing prompt "' + String(e).slice(0, 80) + '"';
+  }
+}
+return 'OK: unique question';`;
+
+const SUMMARIZE_HEADLINES_TOOL_JS = `const raw = String($input?.query ?? '').trim();
+const headlines = $('Build agent input').first()?.json?.headlines || [];
+const indices = raw.split(/[,\\s]+/).map((n) => parseInt(n, 10)).filter((n) => !Number.isNaN(n) && n >= 0);
+
+if (!indices.length) return 'ERROR: provide comma-separated headline indices, e.g. "0,2,5"';
+
+const lines = [];
+for (const i of indices.slice(0, 8)) {
+  const h = headlines[i];
+  if (!h) {
+    lines.push('[' + i + '] (ukjent indeks)');
+    continue;
+  }
+  lines.push('[' + i + '] ' + h.title + ' (' + h.outlet + ')' + (h.longRunning ? ' [langvarig stortingssak]' : ''));
+}
+return 'Oppsummering av valgte overskrifter:\\n' + lines.join('\\n');`;
 
 const MODERATION_ROUTE_JS = `const item = $input.first()?.json || {};
 let out = item.output ?? item;
@@ -323,59 +430,136 @@ function tryParseJson(raw) {
 }
 
 if (typeof out === 'string') out = tryParseJson(out) || { prompts: [] };
+if (out && typeof out.output === 'object' && out.output !== null) out = out.output;
 if (out && typeof out.output === 'string') {
   out = tryParseJson(out.output) || tryParseJson(out) || { prompts: [] };
 }
 
 let prompts = Array.isArray(out.prompts) ? out.prompts : [];
-prompts = prompts.filter((p) => p && typeof p === 'object' && typeof p.question === 'string');
-const headlines = $('Build agent input').first()?.json?.headlines || [];
+prompts = prompts.filter((p) => {
+  if (!p || typeof p !== 'object' || typeof p.question !== 'string') return false;
+  const q = String(p.question || '').trim();
+  if (q.length < 12 || q === '...' || /^\\.{2,}$/.test(q)) return false;
+  if (/^(eksempel|test|placeholder)/i.test(q)) return false;
+  return true;
+});
+const agentInput = $('Build agent input').first()?.json || {};
+const headlines = (Array.isArray(agentInput.headlines) && agentInput.headlines.length)
+  ? agentInput.headlines
+  : (Array.isArray(item.headlines) ? item.headlines : []);
+const existingQuestions = Array.isArray(agentInput.existingQuestions) && agentInput.existingQuestions.length
+  ? agentInput.existingQuestions
+  : (Array.isArray(item.existingQuestions) ? item.existingQuestions : []);
+const maxSortOrder = Number(agentInput.maxSortOrder ?? item.maxSortOrder) || 0;
+
+function norm(q) {
+  return String(q || '').toLowerCase().replace(/[^a-zæøå0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim();
+}
+
+function tokens(q) {
+  return norm(q).split(' ').filter((w) => w.length > 3);
+}
+
+function isNearDuplicate(candidate, baseline) {
+  const c = norm(candidate);
+  const b = norm(baseline);
+  if (!c || !b) return false;
+  if (c === b) return true;
+  const ct = tokens(c);
+  const bt = new Set(tokens(b));
+  if (!ct.length) return false;
+  let overlap = 0;
+  for (const w of ct) if (bt.has(w)) overlap++;
+  return overlap >= 4 && overlap / ct.length >= 0.55;
+}
+
+function isDuplicateQuestion(q) {
+  const key = norm(q);
+  for (const e of existingQuestions) {
+    if (isNearDuplicate(key, e)) return true;
+  }
+  return false;
+}
+
+const FALLBACK_RULES = [
+  { re: /laser|russe|russ|russetid/, q: 'Støtter du nasjonalt forbud mot lasere i russefeiringen?', tags: ['laser', 'russe'] },
+  { re: /ki-video|ki-videoer|deepfake|ki-generert|syntetisk.*video/, q: 'Bør Norge forby KI-genererte krigsvideoer i valgkamp?', tags: ['ki', 'valg'] },
+  { re: /mediepolitikk|publicistisk|mediestøtte|nrk.*kutt|kringkasting/, q: 'Bør staten styrke publicistiske medier i Norge?', tags: ['medier', 'kultur'] },
+  { re: /støre|gahr støre|ap-regjering/, q: 'Er du fornøyd med Støre-regjeringens gjennomføringskraft?', tags: ['regjering', 'støre'] },
+  { re: /regjering.*medie|medie.*regjering|null gjennomføring/, q: 'Er du enig i at regjeringen må styrke mediepolitikken?', tags: ['regjering', 'medier'] },
+  { re: /politiet.*skutt|skjøt person|skarplad/, q: 'Støtter du at politiet skal kunne bruke skarplader våpen ved alvorlige trusler?', tags: ['politi', 'våpen'] },
+  { re: /ukraina|ukrainsk|støtte.*ukraina/, q: 'Støtter du økt norsk militær og humanitær støtte til Ukraina?', tags: ['ukraina', 'forsvar'] },
+  { re: /gaza|palestin|midtøsten/, q: 'Bør Norge øke humanitær støtte til Gaza?', tags: ['gaza', 'utenrikspolitikk'], sensitivity: 'high' },
+  { re: /strøm|kraftpris|kraft.*pris|nettleie/, q: 'Bør staten innføre et tak på strømpriser for husholdninger?', tags: ['strøm', 'kraft'] },
+  { re: /asyl|innvandring|utvisning|migrations/, q: 'Bør Norge stramme asyl- og utvisningsreglene?', tags: ['asyl', 'innvandring'] },
+  { re: /skatt|formuesskatt|inntektsskatt/, q: 'Bør Norge øke skatt på høye inntekter og formuer?', tags: ['skatt', 'økonomi'] },
+  { re: /budsjett|statsbudsjett/, q: 'Støtter du regjeringens prioriteringer i statsbudsjettet?', tags: ['budsjett', 'økonomi'] },
+  { re: /klima|utslipp|karbon|co2/, q: 'Bør Norge innføre strengere klimakrav for næringslivet?', tags: ['klima', 'miljø'] },
+  { re: /bolig|huspris|leiemarked/, q: 'Bør staten bygge flere rimelige boliger i store byer?', tags: ['bolig', 'økonomi'] },
+  { re: /skole|lærer|utdanning|privatskole/, q: 'Bør staten øke bevilgningene til grunnskolen?', tags: ['skole', 'utdanning'] },
+  { re: /helse|sykehus|fastlege|helseforetak/, q: 'Bør staten øke bevilgningene til sykehus og fastleger?', tags: ['helse', 'velferd'] },
+  { re: /forsvar|nato|forsvarsbudsjett/, q: 'Støtter du at Norge når 3 prosent av BNP i forsvarsbudsjett?', tags: ['forsvar', 'nato'] },
+  { re: /eu |europaparlament|eøs/, q: 'Bør Norge søke EU-medlemskap på nytt?', tags: ['eu', 'utenrikspolitikk'] },
+  { re: /bompenger|veipakke|tollring/, q: 'Støtter du å avvikle bompenger på riksveier?', tags: ['transport', 'bompenger'] },
+  { re: /barnevern|omsorgssvikt/, q: 'Bør barnevernet få flere ressurser og lavere saksbehandlingstid?', tags: ['barnevern', 'velferd'] },
+  { re: /epstein|overgrep|seksual/, q: 'Bør Norge opprette uavhengig gransking av Epstein-koblinger?', tags: ['gransking', 'justis'], sensitivity: 'high' },
+  { re: /domstol|høyesterett|rettssak/, q: 'Støtter du sterkere rettssikkerhet ved politiets bruk av makt?', tags: ['justis', 'politi'] },
+  { re: /storting|representant|opposisjon/, q: 'Bør Stortinget få sterkere kontroll med regjeringens maktbruk?', tags: ['storting', 'demokrati'] },
+  { re: /lovforslag|lovendring|ny lov/, q: 'Støtter du at nye lover alltid skal ha konsekvensutredning før vedtak?', tags: ['lov', 'demokrati'] },
+  { re: /korrupsjon|underslag|svindel/, q: 'Bør straffen for korrupsjon i offentlig sektor skjerpes?', tags: ['korrupsjon', 'justis'] },
+];
+
+function titleFallback(headline, index) {
+  const title = String(headline.title || '');
+  const t = title.toLowerCase();
+  if (/eksplosjon|brannskad|drap|overfall|ulykke/.test(t)) return null;
+  const topic = title.split(/[:–-]/)[0].trim().slice(0, 70);
+  if (topic.length < 12) return null;
+  if ((headline.isPolitical || headline.longRunning) === false) return null;
+  return {
+    question: 'Er du enig i at Norge bør ta tydeligere grep om «' + topic + '»?',
+    source_indices: [index],
+    topic_tags: ['debatt'],
+    sensitivity: 'low',
+  };
+}
 
 function fallbackPrompts(headlines) {
   const out = [];
-  const seen = new Set();
-  for (let i = 0; i < headlines.length && out.length < 5; i++) {
+  const localSeen = new Set();
+  for (let i = 0; i < headlines.length && out.length < 8; i++) {
     const title = String(headlines[i].title || '');
     const t = title.toLowerCase();
-    let question = null;
-    let tags = [];
-    if (/laser|russe/.test(t)) {
-      question = 'Støtter du nasjonalt forbud mot lasere i russefeiringen?';
-      tags = ['laser', 'russe'];
-    } else if (/ki-video|ki-videoer|deepfake/.test(t)) {
-      question = 'Bør Norge forby KI-genererte krigsvideoer i valgkamp?';
-      tags = ['ki', 'valg'];
-    } else if (/regjering|støre|ap-regjering/.test(t)) {
-      question = 'Er du enig i at regjeringen bør styrkes i mediepolitikken?';
-      tags = ['regjering', 'medier'];
-    } else if (/politiet.*skutt|skjøt person/.test(t)) {
-      question = 'Støtter du at politiet skal kunne bruke skarplader våpen ved trusler?';
-      tags = ['politi', 'våpen'];
-    } else if (/eksplosjon|brannskad/.test(t)) {
-      continue;
-    } else if (/strømpris/.test(t)) {
-      continue;
+    let match = null;
+    for (const rule of FALLBACK_RULES) {
+      if (rule.re.test(t)) {
+        match = {
+          question: rule.q,
+          source_indices: [i],
+          topic_tags: rule.tags || [],
+          sensitivity: rule.sensitivity || 'low',
+        };
+        break;
+      }
     }
-    if (question) {
-      const key = question.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ question, source_indices: [i], topic_tags: tags, sensitivity: 'low' });
-    }
+    if (!match) match = titleFallback(headlines[i], i);
+    if (!match) continue;
+    const key = norm(match.question);
+    if (localSeen.has(key) || isDuplicateQuestion(match.question)) continue;
+    localSeen.add(key);
+    out.push(match);
   }
   return out;
 }
 
-if (!prompts.length) prompts = fallbackPrompts(headlines);
+const seenQuestions = new Set(existingQuestions.map((q) => norm(q)));
+const agentPrompts = prompts;
+
 const batchLimit = Math.max(1, Math.min(12, Number($('Backfill settings').first()?.json?.batchLimit ?? 10) || 10));
+const sortOrderBase = maxSortOrder + 1;
 const blocked = /(porn|nazi|hitler|jævla neger)/i;
 const rejectQuestion = /bør det avstemmes|bør staten gjøre mer|bør det være nødvendig|forhindre brannskader i offentlige|antallet strømprisområder|olympiad|bronsemedalj|mesterliga|champions league|monty python|kultur og kreativ|forskning og utvikling i teknologiske|støtte førstehjelp i tilfelle|i norske byer bli forbudt for å forhindre skader|hva er den største|største utfordringen/i;
-const seenQuestions = new Set();
 const results = [];
-
-function norm(q) {
-  return String(q || '').toLowerCase().replace(/\\s+/g, ' ').trim();
-}
 
 function inferSourceIndex(question, headlines) {
   const q = norm(question);
@@ -387,7 +571,7 @@ function inferSourceIndex(question, headlines) {
     for (const w of q.split(/\\s+/).filter((x) => x.length > 4)) {
       if (t.includes(w)) score += 2;
     }
-    for (const pw of ['laser', 'russ', 'russe', 'strøm', 'skudd', 'politi', 'ukraina', 'krig', 'ki', 'regjering', 'storting', 'forbud', 'dsa', 'epstein']) {
+    for (const pw of ['laser', 'russ', 'russe', 'strøm', 'skudd', 'politi', 'ukraina', 'krig', 'ki', 'regjering', 'storting', 'forbud', 'dsa', 'epstein', 'medie', 'asyl', 'skatt', 'klima', 'bolig', 'helse']) {
       if (q.includes(pw) && t.includes(pw)) score += 6;
     }
     if (score > best) { best = score; bestIdx = i; }
@@ -437,11 +621,13 @@ function indicesForIssue(pr, hl) {
   return idx.length ? idx : [inferSourceIndex(pr.question, hl)].filter((i) => i >= 0);
 }
 
-for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
-  const p = prompts[i];
+function acceptPromptBatch(batch) {
+  for (let i = 0; i < batch.length && results.length < batchLimit; i++) {
+  const p = batch[i];
   const q = String(p.question || '').trim();
   const key = norm(q);
-  if (!q || key.length < 12 || key.length > 200 || blocked.test(q) || rejectQuestion.test(q) || seenQuestions.has(key)) continue;
+  if (!q || key.length < 12 || key.length > 200 || blocked.test(q) || rejectQuestion.test(q)) continue;
+  if (seenQuestions.has(key) || isDuplicateQuestion(q)) continue;
   if (!/^(støtter du|bør |skal |er du enig)/i.test(q)) continue;
   const sources = pickSources(p, headlines);
   if (!sources.length) continue;
@@ -453,6 +639,12 @@ for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
       const h = headlines[Number(raw)];
       if (h && h.stortingetIssueId) { stortingetIssueId = String(h.stortingetIssueId); break; }
     }
+  }
+  const validIssueIds = new Set(
+    headlines.filter((h) => h && h.stortingetIssueId).map((h) => String(h.stortingetIssueId))
+  );
+  if (stortingetIssueId && !validIssueIds.has(stortingetIssueId)) {
+    stortingetIssueId = '';
   }
 
   const sensitivity = p.sensitivity === 'high' ? 'high' : 'low';
@@ -468,37 +660,26 @@ for (let i = 0; i < prompts.length && results.length < batchLimit; i++) {
   const optionsJson = esc(JSON.stringify(options));
   const headlinesJson = esc(JSON.stringify(sources));
   const tagsSql = tags.length
-    ? \`ARRAY[\${tags.map((t) => "'" + esc(t) + "'").join(',')}]\`
+    ? 'ARRAY[' + tags.map((t) => "'" + esc(t) + "'").join(',') + ']'
     : 'ARRAY[]::text[]';
   const stortingetSql = stortingetIssueId ? "'" + esc(stortingetIssueId) + "'" : 'NULL';
-  const sql = status === 'active'
-    ? \`INSERT INTO public.forum_prompts (
-    question, options, source_headlines, topic_tags, sensitivity, status, sort_order, expires_at, stortinget_issue_id
-  ) VALUES (
-    '\${esc(q)}',
-    '\${optionsJson}'::jsonb,
-    '\${headlinesJson}'::jsonb,
-    \${tagsSql},
-    '\${sensitivity}',
-    '\${status}',
-    \${results.length},
-    NOW() + INTERVAL '7 days',
-    \${stortingetSql}
-  )\`
-    : \`INSERT INTO public.forum_prompts (
-    question, options, source_headlines, topic_tags, sensitivity, status, sort_order, stortinget_issue_id
-  ) VALUES (
-    '\${esc(q)}',
-    '\${optionsJson}'::jsonb,
-    '\${headlinesJson}'::jsonb,
-    \${tagsSql},
-    '\${sensitivity}',
-    '\${status}',
-    \${results.length},
-    \${stortingetSql}
-  )\`;
+  const sortVal = results.length + sortOrderBase;
+  const qEsc = esc(q);
+  const activeInsert =
+    "INSERT INTO public.forum_prompts (question, options, source_headlines, topic_tags, sensitivity, status, sort_order, expires_at, stortinget_issue_id) " +
+    "SELECT '" + qEsc + "', '" + optionsJson + "'::jsonb, '" + headlinesJson + "'::jsonb, " + tagsSql + ", '" + sensitivity + "', '" + status + "', " + sortVal + ", NOW() + INTERVAL '7 days', " + stortingetSql + " " +
+    "WHERE NOT EXISTS (SELECT 1 FROM public.forum_prompts fp WHERE lower(trim(fp.question)) = lower(trim('" + qEsc + "')) AND fp.status = 'active' AND (fp.expires_at IS NULL OR fp.expires_at > now()))";
+  const draftInsert =
+    "INSERT INTO public.forum_prompts (question, options, source_headlines, topic_tags, sensitivity, status, sort_order, stortinget_issue_id) " +
+    "SELECT '" + qEsc + "', '" + optionsJson + "'::jsonb, '" + headlinesJson + "'::jsonb, " + tagsSql + ", '" + sensitivity + "', '" + status + "', " + sortVal + ", " + stortingetSql + " " +
+    "WHERE NOT EXISTS (SELECT 1 FROM public.forum_prompts fp WHERE lower(trim(fp.question)) = lower(trim('" + qEsc + "')) AND fp.created_at > now() - interval '30 days')";
+  const sql = status === 'active' ? activeInsert : draftInsert;
   results.push({ json: { sql, question: q, status } });
+  }
 }
+
+acceptPromptBatch(agentPrompts);
+if (!results.length && headlines.length) acceptPromptBatch(fallbackPrompts(headlines));
 
 return results.length ? results : [{ json: { sql: null, skipped: true } }];`;
 
@@ -509,10 +690,64 @@ const ollamaChatModel = languageModel({
     name: 'Ollama Chat Model',
     credentials: { ollamaApi: newCredential('Ollama account') },
     parameters: {
-      // qwen3-vl:8b: bra for multimodal, men tekst-only JSON tar ofte 3+ min og køer ved parallelle webhooks.
-      // Bruk llama3.2:3b-text for stabil ~20s kjøring; bytt tilbake til qwen3-vl kun ved én kjøring om gangen.
       model: 'llama3.2:3b-text-q4_K_M',
-      options: { think: false, temperature: 0.15, numPredict: 800, numCtx: 4096 },
+      options: { think: false, temperature: 0.15, format: 'json', numPredict: 1200, numCtx: 8192 },
+    },
+  },
+});
+
+const agentMemory = memory({
+  type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+  version: 1.4,
+  config: {
+    name: 'Prompt batch memory',
+    parameters: {
+      sessionIdType: 'customKey',
+      sessionKey: expr('{{ "forum-prompts-" + $now.toFormat("yyyy-MM-dd") }}'),
+      contextWindowLength: 8,
+    },
+  },
+});
+
+const checkDuplicateTool = tool({
+  type: '@n8n/n8n-nodes-langchain.toolCode',
+  version: 1.3,
+  config: {
+    name: 'check_duplicate',
+    parameters: {
+      description: 'Check if a proposed forum poll question is a duplicate or near-duplicate of existing prompts. Input: the full question text. Returns DUPLICATE or OK.',
+      language: 'javaScript',
+      jsCode: CHECK_DUPLICATE_TOOL_JS,
+    },
+  },
+});
+
+const summarizeHeadlinesTool = tool({
+  type: '@n8n/n8n-nodes-langchain.toolCode',
+  version: 1.3,
+  config: {
+    name: 'summarize_headlines',
+    parameters: {
+      description: 'Summarize a cluster of headlines by index. Input: comma-separated indices from the headline list, e.g. "0,2,5". Returns a short bullet summary.',
+      language: 'javaScript',
+      jsCode: SUMMARIZE_HEADLINES_TOOL_JS,
+    },
+  },
+});
+
+const promptsOutputParser = outputParser({
+  type: '@n8n/n8n-nodes-langchain.outputParserStructured',
+  version: 1.3,
+  config: {
+    name: 'Prompts JSON parser',
+    parameters: {
+      schemaType: 'fromJson',
+      jsonSchemaExample:
+        '{"prompts":[{"question":"Støtter du nasjonalt forbud mot lasere?","source_indices":[0,1,2],"topic_tags":["laser","russe"],"sensitivity":"low"}]}',
+      autoFix: true,
+    },
+    subnodes: {
+      model: ollamaChatModel,
     },
   },
 });
@@ -531,6 +766,21 @@ const scheduleTriggerAfternoon = trigger({
   output: [{}],
 });
 
+const fetchExistingPrompts = node({
+  type: 'n8n-nodes-base.postgres',
+  version: 2.6,
+  config: {
+    name: 'Fetch existing prompts',
+    executeOnce: true,
+    credentials: { postgres: newCredential('Fokets Meninger') },
+    parameters: {
+      operation: 'executeQuery',
+      query: EXISTING_PROMPTS_SQL,
+    },
+  },
+  output: [{ existing_questions: ['støtter du nasjonalt forbud mot lasere i russefeiringen?'], max_sort_order: 3 }],
+});
+
 const fetchLongRunningIssues = node({
   type: 'n8n-nodes-base.postgres',
   version: 2.6,
@@ -540,7 +790,7 @@ const fetchLongRunningIssues = node({
     parameters: {
       operation: 'executeQuery',
       query:
-        "SELECT id, title, first_seen_at FROM public.stortinget_issues WHERE status = 'pending' AND first_seen_at IS NOT NULL AND first_seen_at < now() - interval '14 days' ORDER BY first_seen_at ASC LIMIT 10",
+        "WITH issues AS (SELECT id, title, first_seen_at FROM public.stortinget_issues WHERE status = 'pending' AND first_seen_at IS NOT NULL AND first_seen_at < now() - interval '14 days' ORDER BY first_seen_at ASC LIMIT 10) SELECT id, title, first_seen_at FROM issues UNION ALL SELECT '_none_', 'Ingen langvarige saker', now() WHERE NOT EXISTS (SELECT 1 FROM issues)",
     },
   },
   output: [{ id: '200329', title: 'Eksempel sak', first_seen_at: '2025-01-01T00:00:00Z' }],
@@ -667,15 +917,16 @@ const generatePromptsAgent = node({
       hasOutputParser: false,
       options: {
         systemMessage: PROMPT_SYSTEM,
-        maxIterations: 1,
+        maxIterations: 3,
         enableStreaming: false,
       },
       subnodes: {
         model: ollamaChatModel,
+        memory: agentMemory,
       },
     },
   },
-  output: [{ output: '{"prompts":[{"question":"Eksempel?","sensitivity":"low"}]}' }],
+  output: [{ output: { prompts: [{ question: 'Eksempel?', source_indices: [0], topic_tags: ['test'], sensitivity: 'low' }] } }],
 });
 
 const moderationRoute = node({
@@ -726,12 +977,13 @@ const savePrompt = node({
 });
 
 sticky(
-  '## Forum trending prompts v2\\n\\nLong-running Stortinget saker + RSS + multi SearXNG + clustering → Ollama → forum_prompts (batchLimit 10).',
+  '## Forum trending prompts v3\\n\\nDB-dedupe + 25+ fallback-temaer + Ollama agent med memory og JSON-output (fallback ved agent-feil).',
   [scheduleTrigger, scheduleTriggerAfternoon, webhookTrigger],
   { color: 5 }
 );
 
 const ingestPipeline = backfillSettings
+  .to(fetchExistingPrompts)
   .to(fetchLongRunningIssues)
   .to(fetchRssHeadlines)
   .to(collectAllHeadlines)

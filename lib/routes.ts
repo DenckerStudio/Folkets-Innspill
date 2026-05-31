@@ -19,6 +19,9 @@ export const routes = {
   sporsmal: `${DASHBOARD_PREFIX}/sporsmal`,
   omOss: '/om-oss',
   login: '/auth/login',
+  completeProfile: '/auth/complete-profile',
+  politiker: (id: string) => `${DASHBOARD_PREFIX}/politikere/${id}`,
+  sporsmalDetail: (id: string) => `${DASHBOARD_PREFIX}/sporsmal/${id}`,
   sak: (id: string) => `${DASHBOARD_PREFIX}/sak/${id}`,
   horing: (id: string) => `${DASHBOARD_PREFIX}/horinger/${id}`,
   forumTopic: (id: string) => `${DASHBOARD_PREFIX}/forum/${id}`,
@@ -32,4 +35,8 @@ export function isDashboardPath(pathname: string): boolean {
 /** Public issue pages linked from the landing page. */
 export function isPublicDashboardSakPath(pathname: string): boolean {
   return /^\/dashboard\/sak\/[^/]+$/.test(pathname);
+}
+
+export function isForumRelatedPath(pathname: string): boolean {
+  return pathname.startsWith(`${DASHBOARD_PREFIX}/forum`) || pathname.includes('/forum');
 }

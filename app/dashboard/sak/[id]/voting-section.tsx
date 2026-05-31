@@ -185,6 +185,8 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('for')}
           disabled={userVote !== null || isSubmitting || isLoadingVote}
+          aria-pressed={userVote === 'for'}
+          aria-label="Stem for"
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'for' 
               ? 'border-emerald-500 bg-emerald-100 text-emerald-800 shadow-md ring-2 ring-emerald-500 ring-offset-2' 
@@ -217,6 +219,8 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('abstain')}
           disabled={userVote !== null || isSubmitting || isLoadingVote}
+          aria-pressed={userVote === 'abstain'}
+          aria-label="Stem avstår"
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'abstain' 
               ? 'border-gray-400 bg-gray-200 text-gray-800 shadow-md ring-2 ring-gray-400 ring-offset-2' 
@@ -249,6 +253,8 @@ export default function VotingSection({ initialVotes, sakId, sakTitle, sakSummar
           whileHover={!userVote ? { scale: 1.02 } : {}}
           onClick={() => handleVote('against')}
           disabled={userVote !== null || isSubmitting || isLoadingVote}
+          aria-pressed={userVote === 'against'}
+          aria-label="Stem mot"
           className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 transition-all duration-200 ${
             userVote === 'against' 
               ? 'border-rose-500 bg-rose-100 text-rose-800 shadow-md ring-2 ring-rose-500 ring-offset-2' 

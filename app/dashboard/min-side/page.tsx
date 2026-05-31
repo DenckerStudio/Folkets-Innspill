@@ -5,6 +5,8 @@ import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn } from 
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import { ProfileNameSettings } from '@/components/profile-name-settings';
+import { ValgomatPanel } from '@/components/valgomat-panel';
 
 function MinSideContent() {
   const searchParams = useSearchParams();
@@ -201,26 +203,13 @@ function MinSideContent() {
                 </p>
               </div>
               
-              {voteHistory.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Du må stemme på minst noen saker for å se din Valgomat.</p>
-                  <Link href="/dashboard/utforsk" className="mt-4 inline-block text-indigo-600 font-medium hover:text-indigo-500">
-                    Utforsk saker →
-                  </Link>
-                </div>
-              ) : (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
-                  <h4 className="font-bold text-indigo-900 mb-2">Slik fungerer det</h4>
-                  <p className="text-sm text-indigo-800">
-                    Valgomat 2.0 er ikke basert på hva partiene <em>sier</em> i partiprogrammet sitt, men hva de <em>faktisk stemmer</em> i Stortingssalen. Hver gang du stemmer &quot;For&quot; eller &quot;Mot&quot; på en sak i appen, sammenlignes din stemme med det endelige voteringresultatet for hvert parti.
-                  </p>
-                </div>
-              )}
+              <ValgomatPanel voteCount={voteHistory.length} />
             </div>
           )}
 
           {activeTab === 'innstillinger' && (
             <div className="space-y-6">
+              <ProfileNameSettings />
               <h3 className="text-lg font-medium text-gray-900">Interesseområder</h3>
               <p className="text-sm text-gray-500">Velg hvilke saksområder du ønsker å følge ekstra nøye med på.</p>
               

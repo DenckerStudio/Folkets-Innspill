@@ -1,150 +1,123 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Users, Clock, MousePointer2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Clock, MessageSquare } from 'lucide-react';
 import { getAnonSupabase } from '@/lib/supabase';
+import {
+  fetchStortingetHoringById,
+  getHoringDeadline,
+  getHoringTitle,
+} from '@/lib/stortinget-horinger';
+import { resolveHearingCommentAuthor } from '@/lib/forum/author-display';
+import { ForumAuthorBadge } from '@/components/forum/forum-author-badge';
+import { routes } from '@/lib/routes';
 import HearingCommentForm from './comment-form';
 
 export const dynamic = 'force-dynamic';
 
-async function getHearing(id: string) {
+async function getComments(stortingetHearingId: string) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return null;
+    return [];
   }
 
-  try {
-    const supabase = getAnonSupabase();
-    const { data: hearing, error } = await supabase
-      .from('hearings')
-      .select(`
-        id,
-        title,
-        description,
-        deadline,
-        stortinget_issue_id,
-        created_at
-      `)
-      .eq('id', id)
-      .single();
+  const supabase = getAnonSupabase();
+  const { data: comments } = await supabase
+    .from('hearing_comments')
+    .select(`
+      id,
+      body,
+      created_at,
+      author_user_id,
+      users:author_user_id (first_name, last_name, name)
+    `)
+    .eq('stortinget_hearing_id', stortingetHearingId)
+    .order('created_at', { ascending: true });
 
-    if (error || !hearing) return null;
-
-    const { data: comments } = await supabase
-      .from('hearing_comments')
-      .select(`
-        id,
-        body,
-        created_at,
-        author_user_id,
-        users:author_user_id (name)
-      `)
-      .eq('hearing_id', hearing.id)
-      .order('created_at', { ascending: true });
-
-    const isOpen = hearing.deadline ? new Date(hearing.deadline) > new Date() : true;
-
-    return {
-      id: hearing.id,
-      title: hearing.title,
-      description: hearing.description,
-      deadline: hearing.deadline
-        ? new Date(hearing.deadline).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
-        : null,
-      isOpen,
-      stortingetIssueId: hearing.stortinget_issue_id,
-      comments: (comments || []).map(c => ({
-        id: c.id,
-        author: (c.users as any)?.name || 'Anonym',
-        body: c.body,
-        createdAt: new Date(c.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }),
-      })),
-    };
-  } catch (e) {
-    console.error('Failed to fetch hearing:', e);
-    return null;
-  }
+  return (comments || []).map((c) => ({
+    id: c.id,
+    body: c.body,
+    createdAt: new Date(c.created_at).toLocaleDateString('nb-NO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }),
+    author: resolveHearingCommentAuthor(c.users),
+  }));
 }
 
 export default async function HoringDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const hearing = await getHearing(id);
+  const hearing = await fetchStortingetHoringById(id);
 
   if (!hearing) {
     notFound();
   }
 
+  const comments = await getComments(String(hearing.id));
+  const deadline = getHoringDeadline(hearing);
+  const isOpen = deadline ? deadline > new Date() : true;
+  const title = getHoringTitle(hearing);
+  const komite = hearing.komite?.navn ?? 'Ukjent komité';
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      <Link href="/dashboard/horinger" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium">
+      <Link
+        href={routes.horinger}
+        className="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium"
+      >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Tilbake til høringer
       </Link>
-      
-      <div className="bg-white p-8 md:p-12 border border-gray-200 shadow-sm rounded-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${hearing.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}`}>
-            {hearing.isOpen ? 'Åpen for innspill' : 'Lukket'}
-          </span>
-          {hearing.deadline && (
-            <span className="text-gray-500 font-medium flex items-center">
-              <Clock className="w-4 h-4 mr-2" />
-              Frist: {hearing.deadline}
-            </span>
-          )}
-        </div>
-        
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-4 tracking-tight">{hearing.title}</h1>
-        
-        <div className="flex items-center space-x-8 pb-8 border-b border-gray-200 mb-8 text-gray-600 font-medium">
-          <span className="flex items-center">
-            <MessageSquare className="w-5 h-5 mr-2 text-indigo-500" />
-            {hearing.comments.length} innspill
-          </span>
-        </div>
 
-        {hearing.description && (
-          <div className="prose prose-lg max-w-none prose-indigo mb-8">
-            <p>{hearing.description}</p>
-          </div>
+      <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span
+            className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+              isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {hearing.horing_status || (isOpen ? 'Åpen' : 'Avsluttet')}
+          </span>
+          <span className="text-sm text-gray-500">{komite}</span>
+        </div>
+        <h1 className="text-3xl font-bold text-[#00205b] mb-4">{title}</h1>
+        {deadline && (
+          <p className="text-sm text-gray-600 flex items-center gap-2 mb-4">
+            <Clock className="w-4 h-4" />
+            Frist for innspill:{' '}
+            {deadline.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         )}
-
-        {hearing.stortingetIssueId && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-8">
-            <Link href={`/dashboard/sak/${hearing.stortingetIssueId}`} className="text-indigo-600 hover:text-indigo-500 font-medium text-sm">
-              Se relatert stortingssak →
-            </Link>
-          </div>
-        )}
+        <p className="text-sm text-gray-600 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+          Innspill på høringer er offentlige og viser fornavn og etternavn. De sendes ikke automatisk til Stortinget.
+        </p>
       </div>
 
-      {/* Comments */}
-      <div className="space-y-6">
-        <h2 className="text-xl font-bold text-gray-900">Innspill ({hearing.comments.length})</h2>
-        
-        {hearing.comments.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>Ingen innspill ennå. Vær den første til å gi innspill!</p>
-          </div>
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <MessageSquare className="w-5 h-5" />
+          Innspill ({comments.length})
+        </h2>
+
+        {comments.length === 0 ? (
+          <p className="text-sm text-gray-500 py-6 text-center border border-dashed rounded-xl">
+            Ingen innspill ennå.
+          </p>
         ) : (
-          <div className="space-y-4">
-            {hearing.comments.map(comment => (
-              <div key={comment.id} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-sm">
-                    {comment.author.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-900">{comment.author}</div>
-                    <div className="text-xs text-gray-500">{comment.createdAt}</div>
-                  </div>
-                </div>
-                <p className="text-gray-700">{comment.body}</p>
-              </div>
+          <div className="space-y-3">
+            {comments.map((comment) => (
+              <article key={comment.id} className="bg-white border border-gray-200 rounded-xl p-4">
+                {comment.author ? (
+                  <ForumAuthorBadge author={comment.author} className="mb-2" />
+                ) : null}
+                <p className="text-gray-700 text-sm whitespace-pre-wrap">{comment.body}</p>
+                <p className="text-xs text-gray-400 mt-2">{comment.createdAt}</p>
+              </article>
             ))}
           </div>
         )}
 
-        <HearingCommentForm hearingId={hearing.id} isOpen={hearing.isOpen} />
-      </div>
+        {isOpen && <HearingCommentForm stortingetHearingId={String(hearing.id)} />}
+      </section>
     </div>
   );
 }

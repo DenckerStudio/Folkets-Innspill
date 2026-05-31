@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { getRepresentanter } from '@/lib/stortinget';
 import { getPersonbildeUrl } from '@/lib/stortinget-utils';
-import { ShieldCheck, MapPin, Building2, Search, User } from 'lucide-react';
+import { routes } from '@/lib/routes';
+import { ShieldCheck, MapPin, Building2, Search } from 'lucide-react';
 import FadeIn from '@/components/fade-in';
 import Image from 'next/image';
 
@@ -88,7 +90,10 @@ export default async function PolitikerePage() {
             
             return (
               <FadeIn key={rep.id} delay={0.1 * Math.min(index, 8)} direction="up">
-                <div className="group bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-gray-200 transition-all duration-200 flex flex-col h-full overflow-hidden">
+                <Link
+                  href={routes.politiker(String(rep.id))}
+                  className="group bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-gray-200 transition-all duration-200 flex flex-col h-full overflow-hidden"
+                >
                   {/* Top accent bar based on party color */}
                   <div className={`h-2 w-full ${partyColors.icon}`}></div>
                   
@@ -146,7 +151,7 @@ export default async function PolitikerePage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               </FadeIn>
             );
           })}

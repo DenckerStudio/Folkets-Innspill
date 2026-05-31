@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CheckCircle } from 'lucide-react';
 import LikeButton, { CommentCountPill, ShareThreadButton } from '@/components/forum/like-button';
+import { ForumAuthorBadge } from '@/components/forum/forum-author-badge';
 import { ForumSourceList } from '@/components/forum/forum-source-card';
 import type { ForumThreadListItem } from '@/lib/forum/queries';
 import { routes } from '@/lib/routes';
@@ -34,8 +35,12 @@ export default function ForumPostCard({ topic }: { topic: ForumThreadListItem })
               r/{sakLabel}
             </Link>
           )}
-          <span>·</span>
-          <span>Av {topic.author}</span>
+          {topic.relatedIssueId && sakLabel && <span>·</span>}
+          {topic.author ? (
+            <ForumAuthorBadge author={topic.author} className="!gap-1.5" />
+          ) : (
+            <span className="text-gray-400">Ukjent forfatter</span>
+          )}
           <span>·</span>
           <span>{topic.createdAt}</span>
         </div>

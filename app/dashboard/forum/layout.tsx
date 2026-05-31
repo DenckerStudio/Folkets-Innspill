@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import ForumSidebar from '@/components/forum/forum-sidebar';
 import ForumMobileNav from '@/components/forum/forum-mobile-nav';
+import { ForumMobileRules } from '@/components/forum/forum-mobile-rules';
 
 export default function ForumLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,10 @@ export default function ForumLayout({ children }: { children: React.ReactNode })
             </Suspense>
           </div>
         </aside>
-        <div className="min-w-0">{children}</div>
+        <div className="min-w-0">
+          <ForumMobileRules />
+          {children}
+        </div>
       </div>
     </div>
   );
