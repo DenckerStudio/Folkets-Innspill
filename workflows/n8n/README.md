@@ -64,6 +64,16 @@ Workflow-kilde: [`forum-trending-prompts.workflow.ts`](forum-trending-prompts.wo
 
 **Live workflow:** https://n8n.heyklever.app/workflow/MloIdsnX7FozM4dv
 
+**v3 flyt (dedupe + fallback + agent):**
+
+1. **Fetch existing prompts** – henter aktive + siste 30 dager for dedupe
+2. **Fetch long-running saker** + **Fetch RSS** + **Collect all headlines** (clustering, 5 SearXNG-queries)
+3. **Ollama agent** (`llama3.2:3b-text-q4_K_M`, JSON-format) med:
+   - Simple Memory (dags-session `forum-prompts-YYYY-MM-DD`)
+   - Ingen tool-calling (modellen støtter ikke tools) – dedupe skjer i kode
+4. **Moderation + route** – filtrerer placeholder/duplikat fra agent; **fallback** (25+ regex-temaer) når agent feiler eller kun returnerer duplikater; fuzzy near-duplicate; `INSERT … WHERE NOT EXISTS`
+5. DB: partial unique index på `lower(trim(question))` for aktive prompts (migrasjon `20260531140000_forum_prompts_dedupe.sql`)
+
 **v2 flyt:**
 
 1. **Fetch long-running saker** (Postgres: `status=pending`, `first_seen_at` > 14 dager)

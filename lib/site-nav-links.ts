@@ -50,6 +50,10 @@ export const isMinSideActive: NavIsActive = (pathname) =>
 
 export const isOmOssActive: NavIsActive = (pathname) => pathname === routes.omOss;
 
+
+export const isInnsiktActive: NavIsActive = (pathname) =>
+  pathname === routes.innsikt || pathname.startsWith(`${routes.innsikt}/`);
+
 export const isPolitikerHubActive: NavIsActive = (pathname) =>
   pathname.startsWith(routes.politikerHub);
 
@@ -74,6 +78,13 @@ export const desktopMoreNavLinks: SiteNavLinkItem[] = [
     description: 'Historie, mål og hvordan vi jobber',
     icon: Info,
     isActive: isOmOssActive,
+  },
+  {
+    title: 'Åpen innsikt',
+    href: routes.innsikt,
+    description: 'Anonyme stemmetall per sak',
+    icon: BarChart2,
+    isActive: isInnsiktActive,
   },
   {
     title: 'Politiker-hub',

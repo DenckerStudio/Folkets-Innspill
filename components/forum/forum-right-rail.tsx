@@ -17,6 +17,7 @@ export default function ForumRightRail({ recentThreads, popularIssues }: ForumRi
           Forumregler
         </h3>
         <ul className="space-y-2 text-xs text-gray-600 leading-relaxed">
+          <li>Innlegg er offentlige og viser ditt navn (fornavn og etternavn).</li>
           <li>Hold en saklig og respektfull tone.</li>
           <li>Ingen hat, trakassering, porno eller spam.</li>
           <li>Lenker til godkjente kilder vises med «Ekstern kilde».</li>

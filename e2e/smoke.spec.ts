@@ -21,6 +21,16 @@ test.describe('Folkets Stemme smoke', () => {
     await expect(page).toHaveURL(/auth\/login/);
   });
 
+  test('complete-profile page explains public forum identity', async ({ page }) => {
+    await page.goto('/auth/complete-profile');
+    await expect(page.getByText(/Foruminnlegg er offentlige/i)).toBeVisible();
+  });
+
+  test('horinger list page loads', async ({ page }) => {
+    const res = await page.goto('/dashboard/horinger');
+    expect(res?.status()).toBeLessThan(500);
+  });
+
   test('cron endpoint rejects missing secret', async ({ request }) => {
     const res = await request.get('/api/cron/sync-issues');
     expect(res.status()).toBe(401);

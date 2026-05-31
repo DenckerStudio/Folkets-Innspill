@@ -77,7 +77,14 @@ export default function AdminForumPromptsClient() {
       <Link href={routes.forum} className="text-sm text-indigo-600 hover:text-indigo-500 mb-6 inline-block">
         ← Tilbake til forum
       </Link>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Godkjenn forum-spørsmål</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">
+        Godkjenn forum-spørsmål
+        {prompts.length > 0 && (
+          <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-sm font-semibold text-amber-900">
+            {prompts.length} utkast
+          </span>
+        )}
+      </h1>
       <p className="text-sm text-gray-600 mb-8">
         Sensitive spørsmål fra n8n lander her som utkast. Sett FORUM_ADMIN_EMAILS i miljøvariabler for tilgang.
       </p>

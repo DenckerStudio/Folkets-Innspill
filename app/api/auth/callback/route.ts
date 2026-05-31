@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { ensurePublicUser } from "@/lib/ensure-public-user";
+import { userHasForumIdentityInDb } from "@/lib/forum/require-forum-identity";
 import { sanitizePostLoginPath } from "@/lib/safe-redirect";
+import { isForumRelatedPath, routes } from "@/lib/routes";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -36,6 +38,14 @@ export async function GET(request: Request) {
           await ensurePublicUser(user);
         } catch (e) {
           console.error('Failed to sync public.users on login', e);
+        }
+      }
+      if (user && isForumRelatedPath(next)) {
+        const hasIdentity = await userHasForumIdentityInDb(user.id);
+        if (!hasIdentity) {
+          const profileUrl = new URL(routes.completeProfile, origin);
+          profileUrl.searchParams.set('next', next);
+          return NextResponse.redirect(profileUrl.toString());
         }
       }
       return NextResponse.redirect(`${origin}${next}`);

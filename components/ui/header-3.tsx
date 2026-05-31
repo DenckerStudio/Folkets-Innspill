@@ -24,6 +24,7 @@ export function Header() {
   const router = useRouter();
   const isLoggedIn = !!user;
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const [isForumAdmin, setIsForumAdmin] = React.useState(false);
   const displayName =
     user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
   const moreSectionActive = useNavSectionActive(
@@ -58,6 +59,17 @@ export function Header() {
     return () => {
       if (timer) window.clearInterval(timer);
     };
+  }, [isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isLoggedIn) {
+      setIsForumAdmin(false);
+      return;
+    }
+    fetch('/api/admin/me')
+      .then((res) => res.json())
+      .then((json) => setIsForumAdmin(!!json.admin))
+      .catch(() => setIsForumAdmin(false));
   }, [isLoggedIn]);
 
   return (
@@ -106,6 +118,19 @@ export function Header() {
         <div className="hidden items-center gap-2 md:flex">
           {isLoggedIn ? (
             <>
+              {isForumAdmin && (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" render={<Link href={routes.adminForumReports} />}>
+                    Rapporter
+                  </Button>
+                  <Button variant="outline" render={<Link href={routes.adminStats} />}>
+                    Statistikk
+                  </Button>
+                  <Button variant="outline" render={<Link href={routes.adminForumPrompts} />}>
+                    Prompts
+                  </Button>
+                </div>
+              )}
               <Link
                 href={routes.varsler}
                 className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"

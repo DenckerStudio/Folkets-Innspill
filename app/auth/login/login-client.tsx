@@ -12,7 +12,8 @@ export default function LoginClient() {
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
@@ -28,11 +29,22 @@ export default function LoginClient() {
 
     try {
       if (isRegister) {
+        const trimmedFirst = firstName.trim();
+        const trimmedLast = lastName.trim();
+        if (trimmedFirst.length < 2 || trimmedLast.length < 2) {
+          setError('Fornavn og etternavn må være minst 2 tegn.');
+          setIsLoading(false);
+          return;
+        }
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { full_name: name },
+            data: {
+              first_name: trimmedFirst,
+              last_name: trimmedLast,
+              full_name: `${trimmedFirst} ${trimmedLast}`,
+            },
           },
         });
         if (signUpError) {
@@ -182,13 +194,17 @@ export default function LoginClient() {
               </button>
 
               <button
+                type="button"
                 onClick={() => {
-                  router.push(nextPath);
+                  const completeNext = nextPath.includes('forum')
+                    ? `/auth/complete-profile?next=${encodeURIComponent(nextPath)}`
+                    : nextPath;
+                  router.push(completeNext);
                   router.refresh();
                 }}
                 className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
               >
-                Hopp over for nå
+                Fortsett uten SMS-verifisering
               </button>
             </div>
           </div>
@@ -257,20 +273,40 @@ export default function LoginClient() {
 
             <form className="space-y-6" onSubmit={handleEmailAuth}>
               {isRegister && (
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                    Fullt navn
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="name"
-                      name="name"
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
+                      Fornavn
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        id="first-name"
+                        name="first-name"
+                        type="text"
+                        required
+                        minLength={2}
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="last-name" className="block text-sm font-medium text-gray-700">
+                      Etternavn
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        id="last-name"
+                        name="last-name"
+                        type="text"
+                        required
+                        minLength={2}
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
               )}

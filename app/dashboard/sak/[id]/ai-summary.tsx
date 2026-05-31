@@ -46,7 +46,7 @@ export default function AiSummary({
     let cancelled = false;
 
     async function fetchSummary() {
-      const MAX_ATTEMPTS = 40;
+      const MAX_ATTEMPTS = 12;
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS && !cancelled; attempt += 1) {
         try {

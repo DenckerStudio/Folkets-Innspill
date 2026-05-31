@@ -12,6 +12,8 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
   const [body, setBody] = useState('');
   const [isOfficialResponse, setIsOfficialResponse] = useState(false);
   const [isPolitician, setIsPolitician] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [hasIdentity, setHasIdentity] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
@@ -20,6 +22,7 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
   useEffect(() => {
     if (!user) {
       setIsPolitician(false);
+      setDisplayName(null);
       return;
     }
 
@@ -27,10 +30,22 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
       .then((res) => res.json())
       .then((data) => setIsPolitician(!!data.isVerified))
       .catch(() => setIsPolitician(false));
+
+    fetch('/api/user/profile')
+      .then((res) => res.json())
+      .then((data) => {
+        setHasIdentity(!!data.has_forum_identity);
+        setDisplayName(data.display_name || null);
+      })
+      .catch(() => {});
   }, [user]);
 
   const handleSubmit = async () => {
     if (!body.trim() || isSubmitting) return;
+    if (!hasIdentity) {
+      router.push(`${routes.completeProfile}?next=${encodeURIComponent(`/dashboard/forum/${threadId}`)}`);
+      return;
+    }
     setIsSubmitting(true);
     setError('');
 
@@ -79,6 +94,19 @@ export default function ForumReplyForm({ threadId }: { threadId: string }) {
         </div>
       ) : (
         <>
+          {!hasIdentity ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-4">
+              Du må{' '}
+              <Link href={routes.completeProfile} className="font-semibold underline">
+                fullføre profilen
+              </Link>{' '}
+              med fornavn og etternavn før du kan svare. Innlegg vises med ditt navn og er ikke anonyme.
+            </p>
+          ) : displayName ? (
+            <p className="text-xs text-gray-600 mb-3">
+              Du svarer som <strong>{displayName}</strong>. Svaret er offentlig og kan ikke publiseres anonymt.
+            </p>
+          ) : null}
           {error && (
             <div className="mb-4 text-sm text-red-600 bg-red-50 py-2 px-3 rounded-lg">
               {error}

@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
-import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn } from 'lucide-react';
+import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn, MessagesSquare } from 'lucide-react';
+import { MineInnleggList } from '@/components/forum/mine-innlegg-list';
+import { routes } from '@/lib/routes';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import { ProfileNameSettings } from '@/components/profile-name-settings';
+import { ValgomatPanel } from '@/components/valgomat-panel';
 
 function MinSideContent() {
   const searchParams = useSearchParams();
@@ -24,7 +28,7 @@ function MinSideContent() {
   const [notifSaving, setNotifSaving] = useState(false);
 
   const tabParam = searchParams.get('tab');
-  const validTabs = ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'];
+  const validTabs = ['historikk', 'mine-innlegg', 'innstillinger', 'varsler', 'min-data', 'valgomat'];
   const resolvedTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'historikk';
 
   useEffect(() => {
@@ -130,6 +134,7 @@ function MinSideContent() {
           <nav className="-mb-px flex whitespace-nowrap min-w-max" aria-label="Tabs">
             {[
               { id: 'historikk', icon: FileText, label: 'Mine stemmer' },
+              { id: 'mine-innlegg', icon: MessagesSquare, label: 'Mine innlegg' },
               { id: 'valgomat', icon: PieChart, label: 'Valgomat 2.0' },
               { id: 'innstillinger', icon: Settings, label: 'Mine hjertesaker' },
               { id: 'varsler', icon: Bell, label: 'Varsler' },
@@ -137,7 +142,10 @@ function MinSideContent() {
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  router.replace(`${routes.minSide}?tab=${tab.id}`, { scroll: false });
+                }}
                 className={`${
                   activeTab === tab.id
                     ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50'
@@ -190,6 +198,18 @@ function MinSideContent() {
             </div>
           )}
 
+          {activeTab === 'mine-innlegg' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Mine innlegg</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Dine tråder og svar i forumet. Innlegg er offentlige og viser ditt navn.
+                </p>
+              </div>
+              <MineInnleggList embedded />
+            </div>
+          )}
+
           {activeTab === 'valgomat' && (
             <div className="space-y-8 animate-in fade-in duration-300">
               <div className="text-center mb-8">
@@ -201,26 +221,13 @@ function MinSideContent() {
                 </p>
               </div>
               
-              {voteHistory.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Du må stemme på minst noen saker for å se din Valgomat.</p>
-                  <Link href="/dashboard/utforsk" className="mt-4 inline-block text-indigo-600 font-medium hover:text-indigo-500">
-                    Utforsk saker →
-                  </Link>
-                </div>
-              ) : (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
-                  <h4 className="font-bold text-indigo-900 mb-2">Slik fungerer det</h4>
-                  <p className="text-sm text-indigo-800">
-                    Valgomat 2.0 er ikke basert på hva partiene <em>sier</em> i partiprogrammet sitt, men hva de <em>faktisk stemmer</em> i Stortingssalen. Hver gang du stemmer &quot;For&quot; eller &quot;Mot&quot; på en sak i appen, sammenlignes din stemme med det endelige voteringresultatet for hvert parti.
-                  </p>
-                </div>
-              )}
+              <ValgomatPanel />
             </div>
           )}
 
           {activeTab === 'innstillinger' && (
             <div className="space-y-6">
+              <ProfileNameSettings />
               <h3 className="text-lg font-medium text-gray-900">Interesseområder</h3>
               <p className="text-sm text-gray-500">Velg hvilke saksområder du ønsker å følge ekstra nøye med på.</p>
               

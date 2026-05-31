@@ -46,7 +46,7 @@ export default async function LandingPage() {
               icon={MessageSquare}
               iconClass="bg-amber-100 text-amber-600"
               title="Delta i debatten"
-              description="Forum, høringer og spørsmål — gi innspill og diskuter med andre innbyggere."
+              description="Forum og høringer med navngitte innlegg — diskuter åpent med fornavn og etternavn."
             />
             <FeatureCard
               icon={BarChart2}

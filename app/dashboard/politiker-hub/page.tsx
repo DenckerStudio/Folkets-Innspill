@@ -84,57 +84,26 @@ export default function PolitikerHubPage() {
 
   const displayedReps = repSearchQuery ? filteredRepresentanter : filteredRepresentanter.slice(0, 12);
 
-  // Mock Demographics Data
-  const ageDataFor = [
-    { name: '18-25', value: 35 },
-    { name: '26-35', value: 45 },
-    { name: '36-50', value: 65 },
-    { name: '51-65', value: 55 },
-    { name: '65+', value: 40 },
-  ];
-  const ageDataAgainst = [
-    { name: '18-25', value: 60 },
-    { name: '26-35', value: 50 },
-    { name: '36-50', value: 30 },
-    { name: '51-65', value: 20 },
-    { name: '65+', value: 10 },
-  ];
-  const COLORS = ['#10b981', '#f43f5e'];
-
   if (!isVerified) {
     return (
       <div className="max-w-md mx-auto mt-20 text-center">
         <h2 className="text-3xl font-bold text-gray-900 mb-4">Politiker-verifisering</h2>
         <p className="text-gray-600 mb-8">Logg inn med din @stortinget.no e-post for å få tilgang til innsikt og statistikk for ditt distrikt.</p>
-        <button className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
-          Logg inn via Stortinget
-        </button>
+        <p className="text-sm text-gray-500">
+          Kontakt administrator for å knytte din konto til en verifisert politikerprofil.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between">
-        <div className="flex items-center mb-4 md:mb-0">
-          <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-2xl font-bold mr-4">
-            ON
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Ola Nordmann</h1>
-            <p className="text-gray-500 flex items-center">
-              <CheckCircle className="w-4 h-4 mr-1 text-emerald-500" />
-              Verifisert Representant (Hordaland)
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-4">
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-center">
-            <div className="text-2xl font-bold text-indigo-600">45 210</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Aktive brukere i ditt fylke</div>
-          </div>
-        </div>
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+        <h1 className="text-2xl font-bold text-gray-900">Politiker-hub</h1>
+        <p className="text-gray-600 mt-2 flex items-center gap-1">
+          <CheckCircle className="w-4 h-4 text-emerald-500" />
+          Verifisert konto — aggregert engasjement fra anonyme stemmer i appen.
+        </p>
       </div>
 
       {/* Main Stats */}
@@ -178,37 +147,6 @@ export default function PolitikerHubPage() {
               <p className="text-indigo-800">
                 Basert på data fra Stortinget ser vi at saker innen <strong>{categoryStats[0]?.fullName || 'visse kategorier'}</strong> skaper desidert mest engasjement for tiden. Dette indikerer at velgerne er spesielt opptatt av disse temaene i den nåværende politiske debatten.
               </p>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Demokratisk Varmekart: Klima- og miljødebatt</h2>
-            </div>
-            
-            <p className="text-gray-600 mb-8">
-              Slik fordeler meningene seg på kryss av aldersgrupper for den mest populære saken &quot;Ny klimaplan for 2030&quot;.
-            </p>
-
-            <div className="h-80 w-full mb-4">
-              {isMounted ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={ageDataFor.map((item, index) => ({ name: item.name, for: item.value, mot: ageDataAgainst[index].value }))}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}} />
-                    <Legend />
-                    <Bar dataKey="for" name="Stemmer For" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="mot" name="Stemmer Mot" fill="#f43f5e" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="w-full h-full bg-gray-50 rounded-xl animate-pulse"></div>
-              )}
             </div>
           </div>
 

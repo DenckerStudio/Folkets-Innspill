@@ -48,11 +48,24 @@ export default function CreateThreadForm({
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [hasIdentity, setHasIdentity] = useState(true);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
   const router = useRouter();
 
   const backHref = primarySakId ? `${routes.forum}?sak=${primarySakId}` : routes.forum;
+
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/user/profile')
+      .then((res) => res.json())
+      .then((data) => {
+        setHasIdentity(!!data.has_forum_identity);
+        setDisplayName(data.display_name || null);
+      })
+      .catch(() => {});
+  }, [user]);
 
   const linkedKeys = useMemo(
     () => new Set(linkedItems.map(contextItemKey)),
@@ -146,6 +159,10 @@ export default function CreateThreadForm({
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!title.trim() || !body.trim() || isSubmitting) return;
+    if (!hasIdentity) {
+      router.push(`${routes.completeProfile}?next=${encodeURIComponent(routes.forumNew(primarySakId || undefined))}`);
+      return;
+    }
     setIsSubmitting(true);
     setError('');
 
@@ -315,8 +332,15 @@ export default function CreateThreadForm({
             </div>
 
             <div className="mt-8 flex items-center justify-between gap-4">
-              <p className="text-xs text-gray-500 hidden sm:block">
-                Tips: Nevn registrerte brukere med @. Koble saker og politikere via søkepanelet til høyre.
+              <p className="text-xs text-gray-500 hidden sm:block max-w-md">
+                {displayName ? (
+                  <>
+                    Du publiserer som <strong>{displayName}</strong>. Innlegget er offentlig og kan ikke
+                    publiseres anonymt.
+                  </>
+                ) : (
+                  'Tips: Nevn registrerte brukere med @. Koble saker og politikere via søkepanelet til høyre.'
+                )}
               </p>
               <button
                 type="submit"

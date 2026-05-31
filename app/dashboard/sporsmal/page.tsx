@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import FadeIn from '@/components/fade-in';
+import { routes } from '@/lib/routes';
 import { STORTINGET_ACTIVE_SESSION_ID } from '@/lib/stortinget-config';
 import { headers } from 'next/headers';
 
@@ -92,7 +94,16 @@ export default async function SporsmalPage({
           <div className="divide-y divide-gray-100">
             {data.sporsmal.slice(0, 200).map((q, idx) => (
               <div key={q.id ?? idx} className="px-6 py-4">
-                <div className="text-sm font-semibold text-gray-900">{q.tittel || q.sporsmal || `Spørsmål ${q.id ?? ''}`}</div>
+                {q.id ? (
+                  <Link
+                    href={routes.sporsmalDetail(String(q.id))}
+                    className="text-sm font-semibold text-gray-900 hover:text-indigo-600"
+                  >
+                    {q.tittel || q.sporsmal || `Spørsmål ${q.id}`}
+                  </Link>
+                ) : (
+                  <div className="text-sm font-semibold text-gray-900">{q.tittel || q.sporsmal || `Spørsmål`}</div>
+                )}
                 <div className="mt-1 text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
                   {q.id && <span className="font-mono">id={q.id}</span>}
                   {q.type && <span>type={q.type}</span>}
