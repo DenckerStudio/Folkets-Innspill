@@ -1,25 +1,15 @@
 import { getAnonSupabase } from '@/lib/supabase';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { ForumContextItem } from '@/lib/forum/context';
-import { resolveForumAuthor, type ForumAuthorDisplay } from '@/lib/forum/author-display';
 import { stripUrlsForExcerpt } from '@/lib/forum/format-body';
 import { parseContextItemsFromBody, parseContextItemsJson } from '@/lib/forum/parse-context-lines';
 
-type UserJoin = {
-  first_name?: string | null;
-  last_name?: string | null;
-  name?: string | null;
-} | {
-  first_name?: string | null;
-  last_name?: string | null;
-  name?: string | null;
-}[] | null;
+type UserJoin = { name: string | null } | { name: string | null }[] | null;
 
-function mapAuthor(
-  users: UserJoin,
-  isSystemThread: boolean,
-): ForumAuthorDisplay | null {
-  return resolveForumAuthor({ isSystemThread, users });
+function authorName(users: UserJoin): string {
+  if (!users) return 'Anonym';
+  const row = Array.isArray(users) ? users[0] : users;
+  return row?.name?.trim() || 'Anonym';
 }
 
 export function formatTimeAgo(dateStr: string): string {
@@ -55,10 +45,25 @@ export function formatForumDate(dateStr: string): string {
 
 export type ForumSort = 'nyeste' | 'engasjert';
 
+/** Min. 2 tegn; fjerner tegn som bryter PostgREST `ilike`-filter. */
+export function forumSearchPattern(q: string | null | undefined): string | null {
+  const trimmed = q?.trim() ?? '';
+  if (trimmed.length < 2) return null;
+  const safe = trimmed
+    .slice(0, 100)
+    .replace(/[%_,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (safe.length < 2) return null;
+  // Mellomrom → % slik at PostgREST `.or()`-filter ikke brytes
+  const core = safe.replace(/\s+/g, '%');
+  return `%${core}%`;
+}
+
 export type ForumThreadListItem = {
   id: string;
   title: string;
-  author: ForumAuthorDisplay | null;
+  author: string;
   createdAt: string;
   createdAtRaw: string;
   replies: number;
@@ -66,7 +71,6 @@ export type ForumThreadListItem = {
   relatedIssueId: string | null;
   relatedIssueTitle: string | null;
   isResolved: boolean;
-  isSystemThread: boolean;
   bodyExcerpt: string;
   contextItems: ForumContextItem[];
 };
@@ -96,14 +100,13 @@ function mergeContextItems(body: string, jsonItems: unknown): ForumContextItem[]
 export async function getForumThreads(options?: {
   sakId?: string | null;
   sort?: ForumSort;
+  search?: string | null;
   limit?: number;
-  page?: number;
 }): Promise<ForumThreadListItem[]> {
   const sakId = options?.sakId?.trim() || null;
   const sort = options?.sort ?? 'nyeste';
+  const searchPattern = forumSearchPattern(options?.search);
   const limit = options?.limit ?? 20;
-  const page = Math.max(1, options?.page ?? 1);
-  const offset = (page - 1) * limit;
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return [];
@@ -119,22 +122,20 @@ export async function getForumThreads(options?: {
         body,
         stortinget_issue_id,
         is_resolved,
-        is_system_thread,
         created_at,
         author_user_id,
         context_items,
-        users:author_user_id (first_name, last_name, name)
+        users:author_user_id (name)
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(sort === 'engasjert' ? 50 : limit);
 
     if (sakId) {
       query = query.eq('stortinget_issue_id', sakId);
     }
 
-    if (sort === 'engasjert') {
-      query = query.limit(50);
-    } else {
-      query = query.range(offset, offset + limit - 1);
+    if (searchPattern) {
+      query = query.or(`title.ilike.${searchPattern},body.ilike.${searchPattern}`);
     }
 
     const { data: threads, error } = await query;
@@ -185,11 +186,10 @@ export async function getForumThreads(options?: {
 
     let items = (threads || []).map((thread) => {
       const { cleanBody } = parseContextItemsFromBody(thread.body);
-      const author = mapAuthor(thread.users as UserJoin, thread.is_system_thread);
       return {
         id: thread.id,
         title: thread.title,
-        author,
+        author: authorName(thread.users as UserJoin),
         createdAt: formatTimeAgo(thread.created_at),
         createdAtRaw: thread.created_at,
         replies: replyCounts[thread.id] || 0,
@@ -199,7 +199,6 @@ export async function getForumThreads(options?: {
           ? issueTitles[thread.stortinget_issue_id] ?? null
           : null,
         isResolved: thread.is_resolved,
-        isSystemThread: thread.is_system_thread,
         bodyExcerpt: stripUrlsForExcerpt(cleanBody, 180),
         contextItems: mergeContextItems(thread.body, thread.context_items),
       };
@@ -210,9 +209,9 @@ export async function getForumThreads(options?: {
         .sort(
           (a, b) =>
             engagementScore(b.likes, b.replies, b.createdAtRaw) -
-            engagementScore(a.likes, a.replies, a.createdAtRaw),
+            engagementScore(a.likes, a.replies, a.createdAtRaw)
         )
-        .slice(offset, offset + limit);
+        .slice(0, limit);
     }
 
     return items;
@@ -224,7 +223,7 @@ export async function getForumThreads(options?: {
 
 export type ForumReplyItem = {
   id: string;
-  author: ForumAuthorDisplay | null;
+  author: string;
   content: string;
   createdAt: string;
   likes: number;
@@ -236,8 +235,7 @@ export type ForumThreadDetail = {
   id: string;
   title: string;
   content: string;
-  author: ForumAuthorDisplay | null;
-  isSystemThread: boolean;
+  author: string;
   createdAt: string;
   likes: number;
   threadLiked: boolean;
@@ -263,11 +261,10 @@ export async function getForumThread(id: string): Promise<ForumThreadDetail | nu
         body,
         stortinget_issue_id,
         is_resolved,
-        is_system_thread,
         created_at,
         author_user_id,
         context_items,
-        users:author_user_id (first_name, last_name, name)
+        users:author_user_id (name)
       `)
       .eq('id', id)
       .single();
@@ -290,7 +287,7 @@ export async function getForumThread(id: string): Promise<ForumThreadDetail | nu
         is_official_response,
         created_at,
         author_user_id,
-        users:author_user_id (first_name, last_name, name)
+        users:author_user_id (name)
       `)
       .eq('thread_id', thread.id)
       .order('created_at', { ascending: true });
@@ -368,8 +365,7 @@ export async function getForumThread(id: string): Promise<ForumThreadDetail | nu
       id: thread.id,
       title: thread.title,
       content: cleanBody,
-      author: mapAuthor(thread.users as UserJoin, thread.is_system_thread),
-      isSystemThread: thread.is_system_thread,
+      author: authorName(thread.users as UserJoin),
       createdAt: formatForumDate(thread.created_at),
       likes: likes?.length || 0,
       threadLiked,
@@ -379,7 +375,7 @@ export async function getForumThread(id: string): Promise<ForumThreadDetail | nu
       replyLikedIds,
       replies: (replies || []).map((reply) => ({
         id: reply.id,
-        author: mapAuthor(reply.users as UserJoin, false),
+        author: authorName(reply.users as UserJoin),
         content: parseContextItemsFromBody(reply.body).cleanBody,
         createdAt: formatForumDate(reply.created_at),
         likes: replyLikeCounts[reply.id] || 0,
@@ -409,15 +405,18 @@ export async function getIssueTitle(issueId: string): Promise<string | null> {
 }
 
 export async function getSuggestedIssues(limit = 6): Promise<{ id: string; title: string }[]> {
-  try {
-    const { getSaker } = await import('@/lib/stortinget');
-    const issues = await getSaker();
-    return [...issues]
-      .sort((a, b) => (b.votes?.total ?? 0) - (a.votes?.total ?? 0))
-      .slice(0, limit)
-      .map((issue) => ({ id: String(issue.id), title: issue.title || `Sak ${issue.id}` }));
-  } catch (e) {
-    console.error('getSuggestedIssues:', e);
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return [];
   }
+
+  const supabase = getAnonSupabase();
+  const { data } = await supabase
+    .from('stortinget_issues')
+    .select('id,title')
+    .order('last_synced_at', { ascending: false })
+    .limit(limit);
+
+  return (data || [])
+    .filter((row) => row.title)
+    .map((row) => ({ id: row.id, title: row.title as string }));
 }

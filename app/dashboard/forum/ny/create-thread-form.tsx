@@ -5,34 +5,39 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft,
   AtSign,
   FileText,
   Gavel,
+  Layers,
   Lightbulb,
-  Link2,
   Loader2,
   LogIn,
   Shield,
-  Sparkles,
-  Vote,
 } from 'lucide-react';
 import { FORUM_LIMITS } from '@/lib/forum/validation';
 import {
   contextItemKey,
   insertContextIntoBody,
-  removeContextFromBody,
   sakContextItem,
   type ForumContextItem,
 } from '@/lib/forum/context';
 import { routes } from '@/lib/routes';
+import {
+  clearForumThreadDraft,
+  loadForumThreadDraft,
+  saveForumThreadDraft,
+} from '@/lib/forum/thread-draft-storage';
 import ContextPicker, { ContextChip } from '@/components/forum/context-picker';
+import { SakQuickActionLinks } from '@/components/forum/sak-quick-action-modal';
 
 type CreateThreadFormProps = {
   sakId?: string | null;
   sakTitle?: string | null;
   suggestedIssues?: { id: string; title: string }[];
 };
+
+const inputClass =
+  'w-full rounded-xl border-0 bg-gray-50 px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-shadow placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30';
 
 export default function CreateThreadForm({
   sakId: initialSakId,
@@ -50,11 +55,11 @@ export default function CreateThreadForm({
   const [error, setError] = useState('');
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [hasIdentity, setHasIdentity] = useState(true);
+  const [draftRestored, setDraftRestored] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const draftHydrated = useRef(false);
   const { user } = useAuth();
   const router = useRouter();
-
-  const backHref = primarySakId ? `${routes.forum}?sak=${primarySakId}` : routes.forum;
 
   useEffect(() => {
     if (!user) return;
@@ -71,6 +76,54 @@ export default function CreateThreadForm({
     () => new Set(linkedItems.map(contextItemKey)),
     [linkedItems]
   );
+
+  useEffect(() => {
+    const draft = loadForumThreadDraft();
+    if (draft) {
+      setTitle(draft.title);
+      setBody(draft.body);
+      setLinkedItems(draft.linkedItems);
+      if (!initialSakId) {
+        setPrimarySakId(draft.primarySakId);
+        setPrimarySakTitle(draft.primarySakTitle);
+      }
+      setDraftRestored(true);
+    }
+    draftHydrated.current = true;
+  }, [initialSakId]);
+
+  const persistDraft = useCallback(() => {
+    if (!draftHydrated.current) return;
+    saveForumThreadDraft({
+      title,
+      body,
+      primarySakId,
+      primarySakTitle,
+      linkedItems,
+    });
+  }, [title, body, primarySakId, primarySakTitle, linkedItems]);
+
+  useEffect(() => {
+    if (!draftHydrated.current) return;
+    const t = setTimeout(persistDraft, 500);
+    return () => clearTimeout(t);
+  }, [persistDraft]);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') persistDraft();
+    };
+    const onUnload = () => persistDraft();
+
+    window.addEventListener('beforeunload', onUnload);
+    document.addEventListener('visibilitychange', onHide);
+
+    return () => {
+      persistDraft();
+      window.removeEventListener('beforeunload', onUnload);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [persistDraft]);
 
   useEffect(() => {
     if (!primarySakId) {
@@ -129,10 +182,11 @@ export default function CreateThreadForm({
     [appendContext, primarySakId]
   );
 
-  const insertAtCursor = (snippet: string) => {
+  const insertMention = () => {
     const el = bodyRef.current;
+    const snippet = '\n@';
     if (!el) {
-      setBody((prev) => `${prev}${prev ? '\n' : ''}${snippet}`);
+      setBody((prev) => `${prev}${prev ? '\n' : ''}@`);
       return;
     }
 
@@ -147,17 +201,7 @@ export default function CreateThreadForm({
     });
   };
 
-  const removeLinkedItem = useCallback((item: ForumContextItem) => {
-    setLinkedItems((prev) => prev.filter((p) => contextItemKey(p) !== contextItemKey(item)));
-    setBody((prev) => removeContextFromBody(prev, item));
-    if (item.kind === 'sak' && item.id === primarySakId) {
-      setPrimarySakId(null);
-      setPrimarySakTitle(null);
-    }
-  }, [primarySakId]);
-
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
+  const handleSubmit = async () => {
     if (!title.trim() || !body.trim() || isSubmitting) return;
     if (!hasIdentity) {
       router.push(`${routes.completeProfile}?next=${encodeURIComponent(routes.forumNew(primarySakId || undefined))}`);
@@ -186,6 +230,7 @@ export default function CreateThreadForm({
         return;
       }
 
+      clearForumThreadDraft();
       router.push(routes.forumTopic(data.threadId));
       router.refresh();
     } catch {
@@ -197,190 +242,179 @@ export default function CreateThreadForm({
 
   const quickSuggestions = suggestedIssues.filter((s) => s.id !== primarySakId).slice(0, 4);
 
-  return (
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-8">
-      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 md:p-8">
+  if (!user) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center shadow-sm">
         <Link
-          href={backHref}
-          className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500 mb-6"
+          href={routes.login}
+          className="inline-flex items-center font-medium text-indigo-600 hover:text-indigo-500"
         >
-          <ArrowLeft className="mr-2 w-4 h-4" />
-          Tilbake til forumet
+          <LogIn className="mr-1.5 h-4 w-4" />
+          Logg inn for å starte en diskusjon
         </Link>
+      </div>
+    );
+  }
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Start ny diskusjon</h1>
-          <p className="text-gray-600">
-            Koble innlegget til saker, høringer og politikere for bedre kontekst og synlighet i appen.
-          </p>
-        </div>
-
-        {!user ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
-            <Link
-              href={routes.login}
-              className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium"
-            >
-              <LogIn className="w-4 h-4 mr-1.5" />
-              Logg inn for å starte en diskusjon
-            </Link>
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
+      <div className="space-y-6">
+        {error && (
+          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
+            {error}
           </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            {error && (
-              <div
-                role="alert"
-                className="mb-4 text-sm text-red-600 bg-red-50 py-2 px-3 rounded-lg"
-              >
-                {error}
-              </div>
-            )}
+        )}
 
-            {primarySakId && primarySakTitle && (
-              <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 mb-1">Hovedsak</p>
-                <p className="font-medium text-indigo-950">{primarySakTitle}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Link href={routes.sak(primarySakId)} className="text-xs font-medium text-indigo-700 hover:text-indigo-600 inline-flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" /> Se sak
-                  </Link>
-                  <Link href={routes.sak(primarySakId)} className="text-xs font-medium text-indigo-700 hover:text-indigo-600 inline-flex items-center gap-1">
-                    <Vote className="w-3.5 h-3.5" /> Stem
-                  </Link>
-                  <Link href={`${routes.sak(primarySakId)}#ai-summary`} className="text-xs font-medium text-indigo-700 hover:text-indigo-600 inline-flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" /> AI-sammendrag
-                  </Link>
-                </div>
-              </div>
-            )}
+        {draftRestored && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span>Utkast gjenopprettet fra forrige besøk.</span>
+            <button
+              type="button"
+              onClick={() => {
+                clearForumThreadDraft();
+                setDraftRestored(false);
+              }}
+              className="shrink-0 text-xs font-medium text-amber-800 underline-offset-2 hover:underline"
+            >
+              Skjul
+            </button>
+          </div>
+        )}
 
-            <div className="space-y-5">
-              <div>
-                <label htmlFor="thread-title" className="block text-sm font-medium text-gray-700 mb-1">
-                  Tittel
-                </label>
-                <input
-                  id="thread-title"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={FORUM_LIMITS.titleMax}
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                  placeholder="Hva vil du diskutere?"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  {title.length}/{FORUM_LIMITS.titleMax} tegn (min. {FORUM_LIMITS.titleMin})
-                </p>
-              </div>
+        {primarySakId && primarySakTitle && (
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Hovedsak</p>
+            <p className="mt-1 font-semibold text-indigo-950">{primarySakTitle}</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <SakQuickActionLinks sakId={primarySakId} sakTitle={primarySakTitle} />
+            </div>
+          </div>
+        )}
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="thread-body" className="block text-sm font-medium text-gray-700">
-                    Innhold
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => insertAtCursor('\n@')}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
-                      title="Nevn registrert bruker"
-                      aria-label="Nevn bruker"
-                    >
-                      <AtSign className="w-3.5 h-3.5" /> Nevn
-                    </button>
-                  </div>
-                </div>
+        <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-200/80 sm:p-8">
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="thread-title" className="mb-1.5 block text-sm font-medium text-gray-800">
+                Tittel
+              </label>
+              <input
+                id="thread-title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={FORUM_LIMITS.titleMax}
+                className={inputClass}
+                placeholder="Hva vil du diskutere?"
+              />
+              <p className="mt-1.5 text-xs text-gray-500">
+                {title.length}/{FORUM_LIMITS.titleMax} tegn (min. {FORUM_LIMITS.titleMin})
+              </p>
+            </div>
 
-                <textarea
-                  ref={bodyRef}
-                  id="thread-body"
-                  rows={10}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  maxLength={FORUM_LIMITS.bodyMax}
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-mono leading-relaxed"
-                  placeholder="Skriv innlegget ditt. Bruk panelet til høyre for å koble saker, høringer og politikere."
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  {body.length}/{FORUM_LIMITS.bodyMax} tegn · Referanser legges inn automatisk når du velger fra søk
-                </p>
-              </div>
-
+            <div>
+              <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-gray-800">
+                <Layers className="h-4 w-4 text-indigo-600" aria-hidden />
+                Koble til sak, høring eller politiker
+              </p>
+              <ContextPicker
+                onSelect={handleSelect}
+                selectedKeys={linkedKeys}
+                placeholder="Søk og velg…"
+              />
               {linkedItems.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Koblede referanser</p>
-                  <div className="flex flex-wrap gap-2">
-                    {linkedItems.map((item) => (
-                      <ContextChip
-                        key={contextItemKey(item)}
-                        item={item}
-                        isPrimary={item.kind === 'sak' && item.id === primarySakId}
-                        onPrimary={
-                          item.kind === 'sak'
-                            ? () => {
-                                setPrimarySakId(item.id);
-                                setPrimarySakTitle(item.title);
-                              }
-                            : undefined
-                        }
-                        onRemove={() => removeLinkedItem(item)}
-                      />
-                    ))}
-                  </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {linkedItems.map((item) => (
+                    <ContextChip
+                      key={contextItemKey(item)}
+                      item={item}
+                      isPrimary={item.kind === 'sak' && item.id === primarySakId}
+                      onPrimary={
+                        item.kind === 'sak'
+                          ? () => {
+                              setPrimarySakId(item.id);
+                              setPrimarySakTitle(item.title);
+                            }
+                          : undefined
+                      }
+                      onRemove={() =>
+                        setLinkedItems((prev) =>
+                          prev.filter((p) => contextItemKey(p) !== contextItemKey(item))
+                        )
+                      }
+                    />
+                  ))}
                 </div>
               )}
             </div>
 
-            <div className="mt-8 flex items-center justify-between gap-4">
-              <p className="text-xs text-gray-500 hidden sm:block max-w-md">
-                {displayName ? (
-                  <>
-                    Du publiserer som <strong>{displayName}</strong>. Innlegget er offentlig og kan ikke
-                    publiseres anonymt.
-                  </>
-                ) : (
-                  'Tips: Nevn registrerte brukere med @. Koble saker og politikere via søkepanelet til høyre.'
-                )}
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="thread-body" className="text-sm font-medium text-gray-800">
+                  Innhold
+                </label>
+                <button
+                  type="button"
+                  onClick={insertMention}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
+                  title="Nevn bruker"
+                >
+                  <AtSign className="h-3.5 w-3.5" /> Nevn
+                </button>
+              </div>
+              <textarea
+                ref={bodyRef}
+                id="thread-body"
+                rows={12}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                maxLength={FORUM_LIMITS.bodyMax}
+                className={`${inputClass} min-h-[220px] resize-y leading-relaxed`}
+                placeholder="Skriv innlegget ditt. Referanser legges inn automatisk når du velger fra søket over."
+              />
+              <p className="mt-1.5 text-xs text-gray-500">
+                {body.length}/{FORUM_LIMITS.bodyMax} tegn
               </p>
-              <button
-                type="submit"
-                disabled={
-                  title.trim().length < FORUM_LIMITS.titleMin || !body.trim() || isSubmitting
-                }
-                className="ml-auto px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-sm disabled:opacity-50"
-              >
-                {isSubmitting ? 'Oppretter…' : 'Publiser diskusjon'}
-              </button>
             </div>
-          </form>
-        )}
+          </div>
+
+          <div className="mt-8 flex flex-col gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-gray-500 max-w-md">
+              {displayName ? (
+                <>
+                  Du publiserer som <strong>{displayName}</strong>. Innlegget er offentlig og kan ikke
+                  publiseres anonymt.
+                </>
+              ) : (
+                'Tips: Nevn politikere med @ for å gi dem varsel hvis de er registrerte brukere.'
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={
+                title.trim().length < FORUM_LIMITS.titleMin || !body.trim() || isSubmitting
+              }
+              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50 sm:ml-auto"
+            >
+              {isSubmitting ? 'Oppretter…' : 'Publiser diskusjon'}
+            </button>
+          </div>
+        </section>
       </div>
 
-      <aside className="space-y-4">
-        <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-5">
-          <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-            <Link2 className="w-4 h-4 text-indigo-600" />
-            Koble til i appen
-          </h2>
-          <ContextPicker
-            onSelect={handleSelect}
-            selectedKeys={linkedKeys}
-            placeholder="Søk sak, høring, politiker…"
-          />
-        </div>
-
+      <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         {quickSuggestions.length > 0 && (
-          <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-3">Mest engasjerte saker</h3>
-            <div className="space-y-2">
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200/80">
+            <h3 className="text-sm font-bold text-gray-900">Populære saker</h3>
+            <div className="mt-3 space-y-1">
               {quickSuggestions.map((issue) => (
                 <button
                   key={issue.id}
                   type="button"
                   onClick={() => handleSelect(sakContextItem(issue.id, issue.title))}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 text-sm"
+                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-gray-50"
                 >
-                  <span className="font-medium text-gray-900 line-clamp-2">{issue.title}</span>
+                  <span className="line-clamp-2 font-medium text-gray-900">{issue.title}</span>
                 </button>
               ))}
             </div>
@@ -388,28 +422,28 @@ export default function CreateThreadForm({
         )}
 
         {primarySakId && (
-          <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-3">Relatert til hovedsaken</h3>
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200/80">
+            <h3 className="text-sm font-bold text-gray-900">Relatert til hovedsaken</h3>
             {loadingRelated ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Henter forslag…
               </div>
             ) : relatedItems.length === 0 ? (
-              <p className="text-sm text-gray-500">Ingen ekstra forslag funnet for denne saken.</p>
+              <p className="mt-3 text-sm text-gray-500">Ingen ekstra forslag for denne saken.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="mt-3 space-y-1">
                 {relatedItems.map((item) => (
                   <button
                     key={contextItemKey(item)}
                     type="button"
                     onClick={() => handleSelect(item)}
                     disabled={linkedKeys.has(contextItemKey(item))}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50 text-sm border border-gray-100"
+                    className="w-full rounded-xl border border-transparent px-3 py-2.5 text-left text-sm transition-colors hover:border-gray-100 hover:bg-indigo-50 disabled:opacity-50"
                   >
-                    <span className="font-medium text-gray-900 line-clamp-2">{item.title}</span>
+                    <span className="line-clamp-2 font-medium text-gray-900">{item.title}</span>
                     {item.subtitle && (
-                      <span className="block text-xs text-gray-500 mt-0.5">{item.subtitle}</span>
+                      <span className="mt-0.5 block text-xs text-gray-500">{item.subtitle}</span>
                     )}
                   </button>
                 ))}
@@ -418,23 +452,23 @@ export default function CreateThreadForm({
           </div>
         )}
 
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
-          <h3 className="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2">
-            <Lightbulb className="w-4 h-4" />
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-indigo-950">
+            <Lightbulb className="h-4 w-4" />
             Slik fungerer koblinger
           </h3>
-          <ul className="space-y-2 text-xs text-indigo-900/90">
+          <ul className="space-y-2.5 text-xs text-indigo-950/90">
             <li className="flex gap-2">
-              <FileText className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>Første sak du velger blir <strong>hovedsak</strong> og vises på tråden.</span>
+              <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Første sak du velger blir <strong>hovedsak</strong> på tråden.</span>
             </li>
             <li className="flex gap-2">
-              <Gavel className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <Gavel className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>Høringer og relaterte saker legges som referanser i teksten.</span>
             </li>
             <li className="flex gap-2">
-              <Shield className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>Politikere kobles via søkepanelet, ikke @-nevning.</span>
+              <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Politikere nevnes med @ og lenke til Stortinget.</span>
             </li>
           </ul>
         </div>

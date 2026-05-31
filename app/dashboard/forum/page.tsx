@@ -5,7 +5,6 @@ import ForumPostCard from '@/components/forum/forum-post-card';
 import ForumPromptCarousel from '@/components/forum/forum-prompt-carousel';
 import ForumFeedToolbar from '@/components/forum/forum-feed-toolbar';
 import ForumRightRail from '@/components/forum/forum-right-rail';
-import { ForumIdentityBanner } from '@/components/forum/forum-identity-banner';
 import { getForumThreads, getIssueTitle, getSuggestedIssues, type ForumSort } from '@/lib/forum/queries';
 import { getActiveForumPrompts } from '@/lib/forum/prompt-queries';
 import { routes } from '@/lib/routes';
@@ -15,16 +14,17 @@ export const dynamic = 'force-dynamic';
 export default async function ForumPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sak?: string; sort?: string }>;
+  searchParams: Promise<{ sak?: string; sort?: string; q?: string }>;
 }) {
   const params = await searchParams;
   const sakId = params.sak?.trim() || null;
   const sort = (params.sort === 'engasjert' ? 'engasjert' : 'nyeste') as ForumSort;
+  const search = params.q?.trim() || null;
   const sakTitle = sakId ? await getIssueTitle(sakId) : null;
 
   const [topics, prompts, popularIssues] = await Promise.all([
-    getForumThreads({ sakId, sort }),
-    getActiveForumPrompts(18),
+    getForumThreads({ sakId, sort, search }),
+    getActiveForumPrompts(10),
     getSuggestedIssues(6),
   ]);
 
@@ -39,8 +39,6 @@ export default async function ForumPage({
             Diskuter saker, still spørsmål og delta i dagens avstemninger.
           </p>
         </header>
-
-        <ForumIdentityBanner />
 
         {sakId && (
           <div className="mb-6 rounded-xl border border-indigo-100 bg-indigo-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -69,8 +67,15 @@ export default async function ForumPage({
           <div className="text-center py-16 rounded-xl border border-dashed border-gray-200 bg-white">
             <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium text-gray-700">
-              {sakId ? 'Ingen diskusjoner om denne saken ennå' : 'Ingen diskusjoner ennå'}
+              {search
+                ? `Ingen treff for «${search}»`
+                : sakId
+                  ? 'Ingen diskusjoner om denne saken ennå'
+                  : 'Ingen diskusjoner ennå'}
             </p>
+            {search && (
+              <p className="text-sm text-gray-500 mt-1">Prøv andre ord eller fjern søkefilteret.</p>
+            )}
             <Link
               href={newThreadHref}
               className="inline-flex mt-4 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"

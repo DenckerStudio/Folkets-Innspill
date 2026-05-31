@@ -19,6 +19,16 @@ export default function ForumSidebar() {
   const searchParams = useSearchParams();
   const currentSort = searchParams.get('sort') || 'nyeste';
   const sakId = searchParams.get('sak');
+  const q = searchParams.get('q');
+
+  const forumHref = (sort: string | null) => {
+    const params = new URLSearchParams();
+    if (sort) params.set('sort', sort);
+    if (sakId) params.set('sak', sakId);
+    if (q && q.trim().length >= 2) params.set('q', q.trim());
+    const qs = params.toString();
+    return qs ? `${routes.forum}?${qs}` : routes.forum;
+  };
 
   return (
     <nav className="space-y-1" aria-label="Forum-navigasjon">
@@ -31,9 +41,7 @@ export default function ForumSidebar() {
             ? !searchParams.get('sort')
             : currentSort === sort);
 
-        const linkHref = sakId && isForumHome
-          ? `${routes.forum}?${new URLSearchParams({ ...(sort ? { sort } : {}), sak: sakId }).toString()}`
-          : href;
+        const linkHref = isForumHome ? forumHref(sort) : href;
 
         return (
           <Link
