@@ -21,6 +21,7 @@ import { FORUM_LIMITS } from '@/lib/forum/validation';
 import {
   contextItemKey,
   insertContextIntoBody,
+  removeContextFromBody,
   sakContextItem,
   type ForumContextItem,
 } from '@/lib/forum/context';
@@ -133,7 +134,17 @@ export default function CreateThreadForm({
     });
   };
 
-  const handleSubmit = async () => {
+  const removeLinkedItem = useCallback((item: ForumContextItem) => {
+    setLinkedItems((prev) => prev.filter((p) => contextItemKey(p) !== contextItemKey(item)));
+    setBody((prev) => removeContextFromBody(prev, item));
+    if (item.kind === 'sak' && item.id === primarySakId) {
+      setPrimarySakId(null);
+      setPrimarySakTitle(null);
+    }
+  }, [primarySakId]);
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!title.trim() || !body.trim() || isSubmitting) return;
     setIsSubmitting(true);
     setError('');
@@ -198,9 +209,14 @@ export default function CreateThreadForm({
             </Link>
           </div>
         ) : (
-          <>
+          <form onSubmit={handleSubmit}>
             {error && (
-              <div className="mb-4 text-sm text-red-600 bg-red-50 py-2 px-3 rounded-lg">{error}</div>
+              <div
+                role="alert"
+                className="mb-4 text-sm text-red-600 bg-red-50 py-2 px-3 rounded-lg"
+              >
+                {error}
+              </div>
             )}
 
             {primarySakId && primarySakTitle && (
@@ -250,16 +266,10 @@ export default function CreateThreadForm({
                       type="button"
                       onClick={() => insertAtCursor('\n@')}
                       className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
-                      title="Nevn bruker"
+                      title="Nevn registrert bruker"
+                      aria-label="Nevn bruker"
                     >
                       <AtSign className="w-3.5 h-3.5" /> Nevn
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertAtCursor(`\n${routes.utforsk}`)}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
-                    >
-                      <Link2 className="w-3.5 h-3.5" /> Lenke
                     </button>
                   </div>
                 </div>
@@ -296,11 +306,7 @@ export default function CreateThreadForm({
                               }
                             : undefined
                         }
-                        onRemove={() =>
-                          setLinkedItems((prev) =>
-                            prev.filter((p) => contextItemKey(p) !== contextItemKey(item))
-                          )
-                        }
+                        onRemove={() => removeLinkedItem(item)}
                       />
                     ))}
                   </div>
@@ -310,10 +316,10 @@ export default function CreateThreadForm({
 
             <div className="mt-8 flex items-center justify-between gap-4">
               <p className="text-xs text-gray-500 hidden sm:block">
-                Tips: Nevn politikere med @ for å gi dem varsel hvis de er registrerte brukere.
+                Tips: Nevn registrerte brukere med @. Koble saker og politikere via søkepanelet til høyre.
               </p>
               <button
-                onClick={handleSubmit}
+                type="submit"
                 disabled={
                   title.trim().length < FORUM_LIMITS.titleMin || !body.trim() || isSubmitting
                 }
@@ -322,7 +328,7 @@ export default function CreateThreadForm({
                 {isSubmitting ? 'Oppretter…' : 'Publiser diskusjon'}
               </button>
             </div>
-          </>
+          </form>
         )}
       </div>
 
@@ -341,7 +347,7 @@ export default function CreateThreadForm({
 
         {quickSuggestions.length > 0 && (
           <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-3">Populære saker</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Mest engasjerte saker</h3>
             <div className="space-y-2">
               {quickSuggestions.map((issue) => (
                 <button
@@ -404,7 +410,7 @@ export default function CreateThreadForm({
             </li>
             <li className="flex gap-2">
               <Shield className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>Politikere nevnes med @ og lenke til Stortinget.</span>
+              <span>Politikere kobles via søkepanelet, ikke @-nevning.</span>
             </li>
           </ul>
         </div>

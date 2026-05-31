@@ -15,6 +15,7 @@ export type ForumPrompt = {
   options: PromptOption[];
   topicTags: string[];
   sources: PromptSourceHeadline[];
+  stortingetIssueId: string | null;
   discussClickCount: number;
   discussThreshold: number;
   spawnedThreadId: string | null;
@@ -30,7 +31,7 @@ export type PromptResults = {
   spawnedThreadId: string | null;
 };
 
-export async function getActiveForumPrompts(limit = 10): Promise<ForumPrompt[]> {
+export async function getActiveForumPrompts(limit = 18): Promise<ForumPrompt[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return [];
   }
@@ -38,7 +39,7 @@ export async function getActiveForumPrompts(limit = 10): Promise<ForumPrompt[]> 
   const supabase = getAnonSupabase();
   const { data: prompts, error } = await supabase
     .from('forum_prompts')
-    .select('id, question, options, topic_tags, source_headlines, discuss_click_count, discuss_threshold, spawned_thread_id, sort_order')
+    .select('id, question, options, topic_tags, source_headlines, stortinget_issue_id, discuss_click_count, discuss_threshold, spawned_thread_id, sort_order')
     .eq('status', 'active')
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order('sort_order', { ascending: true })
@@ -104,6 +105,7 @@ export async function getActiveForumPrompts(limit = 10): Promise<ForumPrompt[]> 
         }),
         topicTags: prompt.topic_tags || [],
         sources: parsePromptSources(prompt.source_headlines),
+        stortingetIssueId: prompt.stortinget_issue_id ?? null,
         discussClickCount: parsed.discuss_click_count ?? prompt.discuss_click_count ?? 0,
         discussThreshold: parsed.discuss_threshold ?? prompt.discuss_threshold ?? 10,
         spawnedThreadId: parsed.spawned_thread_id ?? prompt.spawned_thread_id,

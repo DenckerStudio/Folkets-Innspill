@@ -26,7 +26,7 @@ export default function ForumRightRail({ recentThreads, popularIssues }: ForumRi
 
       {popularIssues.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-sm font-bold text-gray-900 mb-3">Populære saker</h3>
+          <h3 className="text-sm font-bold text-gray-900 mb-3">Mest engasjerte saker</h3>
           <ul className="space-y-2">
             {popularIssues.map((issue) => (
               <li key={issue.id}>

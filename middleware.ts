@@ -1,10 +1,29 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { checkRateLimit, getRateLimitPolicy } from '@/lib/rate-limit';
 import { isPublicDashboardSakPath, routes } from '@/lib/routes';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
+
+  const ratePolicy = getRateLimitPolicy(pathname);
+  if (ratePolicy) {
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+    const rate = checkRateLimit(`${pathname}:${ip}`, ratePolicy.limit, ratePolicy.windowMs);
+    if (!rate.ok) {
+      return NextResponse.json(
+        { error: 'For mange forespørsler. Prøv igjen om litt.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rate.retryAfterSeconds) },
+        }
+      );
+    }
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

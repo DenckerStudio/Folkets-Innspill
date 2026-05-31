@@ -21,6 +21,7 @@ export async function syncStortingetIssuesToDb(): Promise<SyncIssuesResult> {
     summary: issue.summary || issue.title || null,
     status: issue.status || 'pending',
     last_synced_at: now,
+    last_updated_at: issue.date || now,
   }));
 
   const chunkSize = 100;
@@ -28,12 +29,25 @@ export async function syncStortingetIssuesToDb(): Promise<SyncIssuesResult> {
 
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
-    const { error } = await service.from('stortinget_issues').upsert(chunk, { onConflict: 'id' });
-    if (error) {
-      console.error('syncStortingetIssuesToDb chunk error:', error);
-      throw error;
+    for (const row of chunk) {
+      const { data: existing } = await service
+        .from('stortinget_issues')
+        .select('first_seen_at')
+        .eq('id', row.id)
+        .maybeSingle();
+
+      const payload = {
+        ...row,
+        first_seen_at: existing?.first_seen_at ?? now,
+      };
+
+      const { error } = await service.from('stortinget_issues').upsert(payload, { onConflict: 'id' });
+      if (error) {
+        console.error('syncStortingetIssuesToDb row error:', error);
+        throw error;
+      }
+      upserted += 1;
     }
-    upserted += chunk.length;
   }
 
   return { upserted, total: issues.length };
