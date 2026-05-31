@@ -8,6 +8,8 @@ import { useState, useEffect, useMemo } from 'react';
 import FadeIn from '@/components/fade-in';
 import { useAuth } from '@/hooks/use-auth';
 import { routes } from '@/lib/routes';
+import { PREFERENCE_KEYS } from '@/lib/preferences/keys';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 
 const VOTE_LABELS: Record<string, string> = {
   for: 'For',
@@ -15,17 +17,51 @@ const VOTE_LABELS: Record<string, string> = {
   abstain: 'Avstår',
 };
 
+type UtforskFilters = {
+  searchQuery: string;
+  selectedCategory: string;
+  selectedStatus: string;
+  sortBy: string;
+};
+
+const DEFAULT_UTFORSK_FILTERS: UtforskFilters = {
+  searchQuery: '',
+  selectedCategory: 'Alle kategorier',
+  selectedStatus: 'Alle statuser',
+  sortBy: 'Nyeste først',
+};
+
+function isUtforskFilters(value: unknown): value is UtforskFilters {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as UtforskFilters;
+  return (
+    typeof v.searchQuery === 'string' &&
+    typeof v.selectedCategory === 'string' &&
+    typeof v.selectedStatus === 'string' &&
+    typeof v.sortBy === 'string'
+  );
+}
+
 export default function ExplorePage() {
   const [issues, setIssues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const [userVotes, setUserVotes] = useState<Record<string, string>>({});
 
-  // Filtering and sorting states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Alle kategorier');
-  const [selectedStatus, setSelectedStatus] = useState('Alle statuser');
-  const [sortBy, setSortBy] = useState('Nyeste først');
+  const [filters, setFilters] = usePersistedState(
+    PREFERENCE_KEYS.utforsk.filters,
+    DEFAULT_UTFORSK_FILTERS,
+    isUtforskFilters
+  );
+
+  const displayedUserVotes = user ? userVotes : {};
+  const { searchQuery, selectedCategory, selectedStatus, sortBy } = filters;
+
+  const setSearchQuery = (searchQuery: string) => setFilters((prev) => ({ ...prev, searchQuery }));
+  const setSelectedCategory = (selectedCategory: string) =>
+    setFilters((prev) => ({ ...prev, selectedCategory }));
+  const setSelectedStatus = (selectedStatus: string) => setFilters((prev) => ({ ...prev, selectedStatus }));
+  const setSortBy = (sortBy: string) => setFilters((prev) => ({ ...prev, sortBy }));
 
   useEffect(() => {
     let isMounted = true;
@@ -41,10 +77,7 @@ export default function ExplorePage() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setUserVotes({});
-      return;
-    }
+    if (!user) return;
     fetch('/api/user/vote-history')
       .then((res) => res.json())
       .then((data) => {
@@ -216,11 +249,11 @@ export default function ExplorePage() {
               </Link>
               
               <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                {userVotes[String(issue.id)] ? (
+                {displayedUserVotes[String(issue.id)] ? (
                   <p className="text-sm text-gray-700">
                     Du har stemt:{' '}
                     <span className="font-semibold text-gray-900">
-                      {VOTE_LABELS[userVotes[String(issue.id)]] ?? userVotes[String(issue.id)]}
+                      {VOTE_LABELS[displayedUserVotes[String(issue.id)]] ?? displayedUserVotes[String(issue.id)]}
                     </span>
                     <span className="text-gray-500"> (anonymt i statistikken)</span>
                   </p>
