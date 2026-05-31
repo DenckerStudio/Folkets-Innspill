@@ -98,7 +98,8 @@ export default async function ForumPostPage({ params }: { params: Promise<{ id: 
             {post.replies.map((reply) => (
               <article
                 key={reply.id}
-                className={`flex gap-3 rounded-xl border p-4 ${
+                id={`reply-${reply.id}`}
+                className={`flex gap-3 rounded-xl border p-4 scroll-mt-24 ${
                   reply.isOfficialResponse ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200 bg-white'
                 }`}
               >

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
-import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn } from 'lucide-react';
+import { User, Settings, Bell, Shield, LogOut, FileText, PieChart, LogIn, MessagesSquare } from 'lucide-react';
+import { MineInnleggList } from '@/components/forum/mine-innlegg-list';
+import { routes } from '@/lib/routes';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
@@ -26,7 +28,7 @@ function MinSideContent() {
   const [notifSaving, setNotifSaving] = useState(false);
 
   const tabParam = searchParams.get('tab');
-  const validTabs = ['historikk', 'innstillinger', 'varsler', 'min-data', 'valgomat'];
+  const validTabs = ['historikk', 'mine-innlegg', 'innstillinger', 'varsler', 'min-data', 'valgomat'];
   const resolvedTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'historikk';
 
   useEffect(() => {
@@ -132,6 +134,7 @@ function MinSideContent() {
           <nav className="-mb-px flex whitespace-nowrap min-w-max" aria-label="Tabs">
             {[
               { id: 'historikk', icon: FileText, label: 'Mine stemmer' },
+              { id: 'mine-innlegg', icon: MessagesSquare, label: 'Mine innlegg' },
               { id: 'valgomat', icon: PieChart, label: 'Valgomat 2.0' },
               { id: 'innstillinger', icon: Settings, label: 'Mine hjertesaker' },
               { id: 'varsler', icon: Bell, label: 'Varsler' },
@@ -139,7 +142,10 @@ function MinSideContent() {
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  router.replace(`${routes.minSide}?tab=${tab.id}`, { scroll: false });
+                }}
                 className={`${
                   activeTab === tab.id
                     ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50'
@@ -192,6 +198,18 @@ function MinSideContent() {
             </div>
           )}
 
+          {activeTab === 'mine-innlegg' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Mine innlegg</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Dine tråder og svar i forumet. Innlegg er offentlige og viser ditt navn.
+                </p>
+              </div>
+              <MineInnleggList embedded />
+            </div>
+          )}
+
           {activeTab === 'valgomat' && (
             <div className="space-y-8 animate-in fade-in duration-300">
               <div className="text-center mb-8">
@@ -203,7 +221,7 @@ function MinSideContent() {
                 </p>
               </div>
               
-              <ValgomatPanel voteCount={voteHistory.length} />
+              <ValgomatPanel />
             </div>
           )}
 

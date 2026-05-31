@@ -26,6 +26,10 @@ export const routes = {
   horing: (id: string) => `${DASHBOARD_PREFIX}/horinger/${id}`,
   forumTopic: (id: string) => `${DASHBOARD_PREFIX}/forum/${id}`,
   adminForumPrompts: `${DASHBOARD_PREFIX}/admin/forum-prompts`,
+  adminForumReports: `${DASHBOARD_PREFIX}/admin/forum-reports`,
+  adminStats: `${DASHBOARD_PREFIX}/admin/statistikk`,
+  innsikt: `${DASHBOARD_PREFIX}/innsikt`,
+  minSideForumPosts: `${DASHBOARD_PREFIX}/min-side?tab=mine-innlegg`,
 } as const;
 
 export function isDashboardPath(pathname: string): boolean {

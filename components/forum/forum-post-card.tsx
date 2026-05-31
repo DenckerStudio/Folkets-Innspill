@@ -3,6 +3,7 @@ import { CheckCircle } from 'lucide-react';
 import LikeButton, { CommentCountPill, ShareThreadButton } from '@/components/forum/like-button';
 import { ForumAuthorBadge } from '@/components/forum/forum-author-badge';
 import { ForumSourceList } from '@/components/forum/forum-source-card';
+import { ForumPostCardMenu } from '@/components/forum/forum-post-card-menu';
 import type { ForumThreadListItem } from '@/lib/forum/queries';
 import { routes } from '@/lib/routes';
 
@@ -43,6 +44,9 @@ export default function ForumPostCard({ topic }: { topic: ForumThreadListItem })
           )}
           <span>·</span>
           <span>{topic.createdAt}</span>
+          <span className="ml-auto">
+            <ForumPostCardMenu threadId={topic.id} />
+          </span>
         </div>
 
         <Link href={routes.forumTopic(topic.id)} className="block group">

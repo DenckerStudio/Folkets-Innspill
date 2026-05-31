@@ -156,9 +156,17 @@ export function Header() {
           {isLoggedIn ? (
             <>
               {isForumAdmin && (
-                <Button variant="outline" render={<Link href={routes.adminForumPrompts} />}>
-                  Admin
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" render={<Link href={routes.adminForumReports} />}>
+                    Rapporter
+                  </Button>
+                  <Button variant="outline" render={<Link href={routes.adminStats} />}>
+                    Statistikk
+                  </Button>
+                  <Button variant="outline" render={<Link href={routes.adminForumPrompts} />}>
+                    Prompts
+                  </Button>
+                </div>
               )}
               <Link
                 href={routes.varsler}

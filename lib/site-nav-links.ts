@@ -33,6 +33,12 @@ export const utforskLinks: SiteNavLinkItem[] = [
     icon: Users,
   },
   {
+    title: 'Åpen innsikt',
+    href: routes.innsikt,
+    description: 'Anonyme stemmetall per sak',
+    icon: BarChart2,
+  },
+  {
     title: 'Dashboard',
     href: routes.dashboard,
     description: 'Oversikt over plattformen',
