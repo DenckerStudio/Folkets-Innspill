@@ -133,6 +133,27 @@ export interface StortingetRepresentant {
   };
 }
 
+export interface StortingetRegjeringsmedlem {
+  id: string;
+  fornavn: string;
+  etternavn: string;
+  tittel: string;
+  verv: string;
+  departement: string;
+  sortering: number;
+  parti: {
+    id: string;
+    navn: string;
+  };
+}
+
+export interface PolitikerOversikt extends StortingetRepresentant {
+  tittel?: string;
+  departement?: string;
+  erRegjeringsmedlem: boolean;
+  regjeringsSortering?: number;
+}
+
 export async function getRepresentanter(): Promise<StortingetRepresentant[]> {
   try {
     const res = await fetch(stortingetUrl('/eksport/dagensrepresentanter', { format: 'json' satisfies StortingetFormat }), {
@@ -163,6 +184,61 @@ export async function getRepresentanterForPeriode(periodeId?: string): Promise<S
     console.error('Error fetching representanter (periode):', error);
     return [];
   }
+}
+
+export async function getRegjeringsmedlemmer(): Promise<StortingetRegjeringsmedlem[]> {
+  try {
+    const res = await fetch(stortingetUrl('/eksport/regjering', { format: 'json' satisfies StortingetFormat }), {
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) throw new Error('Failed to fetch regjering');
+    const data = await res.json();
+    return data.regjeringsmedlemmer_liste || [];
+  } catch (error) {
+    console.error('Error fetching regjering:', error);
+    return [];
+  }
+}
+
+/** All MPs for the active period, enriched with government roles where applicable. */
+export async function getPolitikereOversikt(periodeId?: string): Promise<PolitikerOversikt[]> {
+  const [representanter, regjering] = await Promise.all([
+    getRepresentanterForPeriode(periodeId),
+    getRegjeringsmedlemmer(),
+  ]);
+
+  const map = new Map<string, PolitikerOversikt>();
+
+  for (const rep of representanter) {
+    map.set(rep.id, { ...rep, erRegjeringsmedlem: false });
+  }
+
+  for (const member of regjering) {
+    const existing = map.get(member.id);
+    if (existing) {
+      map.set(member.id, {
+        ...existing,
+        tittel: member.tittel,
+        departement: member.departement,
+        erRegjeringsmedlem: true,
+        regjeringsSortering: member.sortering,
+      });
+    } else {
+      map.set(member.id, {
+        id: member.id,
+        fornavn: member.fornavn,
+        etternavn: member.etternavn,
+        fylke: { navn: 'Regjeringen' },
+        parti: member.parti,
+        tittel: member.tittel,
+        departement: member.departement,
+        erRegjeringsmedlem: true,
+        regjeringsSortering: member.sortering,
+      });
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 export interface StortingetPerson {
